@@ -1,0 +1,24 @@
+{
+  "name": "i-can-predict-quakes",
+  "private": true,
+  "version": "0.1.0",
+  "description": "我也會地震預測：輸入一則地震預言，看看隨便亂猜有多容易中",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run test && npm run build",
+    "data": "python tools/build_data.py",
+    "golden": "python tools/golden.py"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "taiwan-atlas": "^2021.9.20",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  }
+}
