@@ -6,10 +6,13 @@
  * 窗口一律由 window.ts 的 computeWindow（＝ windowFor）算出，所以確認卡用同樣的參數重算會得到同樣的結果。
  *
  * 規格沒寫、我們的解讀（見 notes）：
- * - 另收的說法：這個禮拜／這個星期／本禮拜／本星期（thisWeek）、本週末（weekend）、單獨的「月底」（thisMonth）、
- *   單獨的「年底」（thisYear）、這一兩天／這兩三天／未來幾天／接下來幾天／最近幾天（7 天，模糊）、
+ * - 另收的說法：這個禮拜／這個星期／本禮拜／本星期（thisWeek）、本週末／這個週末（weekend；「這個週」不能把
+ *   規格的「週末」切開）、單獨的「月底」（thisMonth）、單獨的「年底」（thisYear）、
+ *   這一兩天／這兩三天／未來幾天／接下來幾天／最近幾天（7 天，模糊）、
  *   「未來 N 週」等（未來、接下來可接任何單位）、「N 個月」的「個」可省略於週／禮拜／星期（「兩星期內」）。
- * - 排除：「不久前」（過去）、上週末、上個月底、去年底、明年底、幾年內（不是今年）。
+ * - 寫了年份或「明年」的說法見 firstCalendarYear：「2026 年底前」「2026 年內」（當年）= thisYear；
+ *   「2027 年底前」「明年底前」→ untilDate；「2027 年內」「明年」→ 那一整年。單獨的「1999 年」不算時間。
+ * - 排除：「不久前」（過去）、上週末、上個月底、去年底、幾年內（不是今年）。
  * - 「N 月底前」→ untilDate（到該月最後一天，比照「年底前」）；「N 月底」沒有「前」時照規格當成 month。
  * - 「11/15 前後」是「大約那天」，不是「之前」：當成 date。「1/2 的機率」是分數，不是日期。
  * - 範圍的年份由「結束日」決定：結束日照單一日期的規則推（今年；早於發布日改明年），開始日取同一年，
@@ -138,7 +141,8 @@ const WORD_RULES: readonly WordRule[] = [
   { re: /大後天/g, build: (ctx) => absolute(ctx, 'date', ctx.d0 + 3, ctx.d0 + 3) },
   { re: /(?:這個?|本)(?:週|禮拜|星期)/g, build: relative('thisWeek') },
   { re: /下個?(?:週|禮拜|星期)/g, build: relative('nextWeek') },
-  { re: /(?<!上)(?:這|本)?週末/g, build: relative('weekend') },
+  // 「這個週末」要整個比對到：否則 thisWeek 的「這個週」會先佔住起點，把規格的「週末」切開
+  { re: /(?<!上)(?:這個?|本)?週末/g, build: relative('weekend') },
   {
     re: new RegExp(`這個月|本月|這月|(?<![${NUMERAL}個上下])月底${BEFORE}?`, 'g'),
     build: relative('thisMonth'),
@@ -199,6 +203,8 @@ function firstCount(ctx: Ctx, re: RegExp): Found | null {
     const n = parseNumber(m[1] ?? '');
     const unit = m[2];
     if (n === null || unit === undefined) return false;
+    // 「2026 年內」是曆年，不是 2026 年份的天數（由 firstCalendarYear 處理）
+    if (unit === '年' && n.value >= 1000) return false;
     // 1e-9：避免 2.3 × 30 = 68.99999… 被捨成 68
     const days = Math.floor(n.value * unitDays(unit) + 1e-9);
     if (!(days >= 1)) return false;
@@ -445,6 +451,101 @@ function firstDate(ctx: Ctx): Found | null {
   return null;
 }
 
+/** 年份之後的「底」「底前」（YEAR_RE 已吃掉「年」與後面的空白） */
+const YEAR_END_RE = new RegExp(`底${BEFORE}?`, 'y');
+/** 年份之後一定要有「前」的「底前」：用在發布日當年以外的年份 */
+const YEAR_END_BEFORE_RE = new RegExp(`底${BEFORE}`, 'y');
+/** 年份之後的「內」「之內」「以內」 */
+const YEAR_WITHIN_RE = new RegExp(`\\s*${WITHIN}`, 'y');
+/** 「明年」「明年底（前）」「明年年底（前）」「明年（之／以）內」 */
+const NEXT_YEAR_RE = new RegExp(`明年(?:\\s*年?\\s*(底${BEFORE}?)|\\s*${WITHIN})?`, 'g');
+
+/** 明確寫出的年份：四位數、「民國 N 年」、四個中文數字。三位數的「100 年內」比較像「一百年內」，不算年份。 */
+function explicitYear(m: RegExpExecArray): number | null {
+  const roc = m[1] !== undefined;
+  const raw = m[2] ?? '';
+  if (!roc && [...raw].length !== 4) return null;
+  return parseYear(m);
+}
+
+/** 某一整年：發布日當年 → thisYear（從發布日到年底）；其他年份 → 1/1 到 12/31（已過加 time-past） */
+function wholeYear(ctx: Ctx, year: number): Built | null {
+  if (year === ctx.y0) return { time: computeWindow('thisYear', ctx.issuedAt), flags: [] };
+  const first = dayIndex(year, 1, 1);
+  const last = dayIndex(year, 12, 31);
+  return first === null || last === null ? null : absolute(ctx, 'dateRange', first, last);
+}
+
+/** 某年年底前：發布日當年 → thisYear；其他年份 → 到該年 12/31（已過只算那天並加 time-past） */
+function yearEnd(ctx: Ctx, year: number): Built | null {
+  if (year === ctx.y0) return { time: computeWindow('thisYear', ctx.issuedAt), flags: [] };
+  const last = dayIndex(year, 12, 31);
+  return last === null ? null : until(ctx, last);
+}
+
+/**
+ * 寫了年份或「明年」的說法（規格 2.2 只定義了「今年底」「年底前」「今年內」，其餘是我們的解讀）：
+ * - 「2026 年底（前）」「2026 年內」，年份就是發布日當年 → thisYear
+ * - 其他年份：「2027 年底前」→ untilDate 到 2027/12/31；「2027 年內」→ 2027 整年（dateRange）
+ * - 「明年底（前）」→ untilDate 到明年 12/31；「明年」「明年內」→ 明年整年
+ * - 單獨的「1999 年」「2024 年底」（沒有「前」）不算時間：預言常提到過去的地震
+ *   （「像 1999 年集集大地震那樣」），當成時間窗會蓋掉後面真正的「下週」。
+ */
+function firstCalendarYear(ctx: Ctx): Found | null {
+  const { norm } = ctx;
+  const candidates: (Found | null)[] = [];
+
+  // 「今年」「明年」後面接月份或日期（「明年 1 月」「今年 12 月 15 日」）：當成寫了年份的日期
+  RELATIVE_YEAR_RE.lastIndex = 0;
+  for (let m = RELATIVE_YEAR_RE.exec(norm); m !== null; m = RELATIVE_YEAR_RE.exec(norm)) {
+    const year = m[1] === '明' ? ctx.y0 + 1 : ctx.y0;
+    const tok = dateTokenAt(norm, m.index + m[0].length);
+    if (tok !== null && tok.year === null) {
+      const found = dateCandidate(ctx, { ...tok, start: m.index, year });
+      if (found !== null) {
+        candidates.push(found);
+        break;
+      }
+    }
+  }
+
+  NEXT_YEAR_RE.lastIndex = 0;
+  for (let m = NEXT_YEAR_RE.exec(norm); m !== null; m = NEXT_YEAR_RE.exec(norm)) {
+    const built = m[1] !== undefined ? yearEnd(ctx, ctx.y0 + 1) : wholeYear(ctx, ctx.y0 + 1);
+    if (built !== null) {
+      candidates.push({ start: m.index, end: m.index + m[0].length, ...built });
+      break;
+    }
+  }
+
+  candidates.push(firstExplicitYear(ctx));
+  return pickEarliest(candidates);
+}
+
+/** 「今年」「明年」之後可接日期（空白可有可無） */
+const RELATIVE_YEAR_RE = /([今明])年\s*/g;
+
+/** 明確寫出年份的「年底前」「年內」 */
+function firstExplicitYear(ctx: Ctx): Found | null {
+  const { norm } = ctx;
+  for (let i = 0; i < norm.length; i++) {
+    if (!startsToken(norm, i)) continue;
+    const y = execAt(YEAR_RE, norm, i);
+    if (y === null) continue;
+    const year = explicitYear(y);
+    if (year === null) continue;
+    const k = i + y[0].length;
+    const endRe = year === ctx.y0 ? YEAR_END_RE : YEAR_END_BEFORE_RE;
+    const tail = execAt(endRe, norm, k);
+    const within = tail === null ? execAt(YEAR_WITHIN_RE, norm, k) : null;
+    const built = tail !== null ? yearEnd(ctx, year) : within !== null ? wholeYear(ctx, year) : null;
+    if (built === null) continue;
+    const end = k + (tail ?? within)![0].length;
+    return { start: i, end, ...built };
+  }
+  return null;
+}
+
 // ================================================================ 對外
 
 /** 找出時間說法；都沒有時用 [發布日, 發布日 + 29] 並加 time-unspecified。 */
@@ -456,6 +557,7 @@ export function findTime(norm: string, orig: string, issuedAt: string): TimeResu
     ...COUNT_RULES.map((re) => firstCount(ctx, re)),
     firstHalfYear(ctx),
     firstDate(ctx),
+    firstCalendarYear(ctx),
   ]);
   if (best === null) {
     return {
