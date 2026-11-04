@@ -14,6 +14,9 @@ tools/.venv/
 .env
 .env.*
 
+# Local tool settings (machine-specific paths)
+.claude/
+
 # Editors and OS
 .vscode/
 .idea/

@@ -1,3 +1,8 @@
-// 暫時的進入點：由 UI 實作取代。
-const app = document.querySelector<HTMLDivElement>('#app');
-if (app) app.textContent = '我也會地震預測（建置中）';
+/**
+ * 進入點：載入樣式、啟動 app（狀態與畫面在 src/app/controller.ts）。
+ */
+import './ui/styles.css';
+import { startApp } from './app/controller';
+
+const root = document.querySelector<HTMLElement>('#app');
+if (root) startApp(root);

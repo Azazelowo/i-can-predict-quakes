@@ -52,6 +52,9 @@ import { matrixOf, spectrumOf } from './sensitivity';
 import { shotgunOf } from './shotgun';
 import { computeWindowHits } from './window';
 
+/** 附錄 A 的亂數產生器；匯出給 tests/golden.test.ts 比對測試向量 */
+export { mulberry32 } from '../stats/random';
+
 /** 資料期間（台灣日序）與年數 */
 export function periodInfo(data: DataBundle): PeriodInfo {
   return periodOf(data);

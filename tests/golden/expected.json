@@ -5,7 +5,7 @@
     "startUnix": 788889600,
     "endUnix": 1767196800,
     "catalogCount": 10062,
-    "feltCount": 16499
+    "feltCount": 16495
   },
   "interpretations": [
     "期間：startDay = localDay(meta.period.startUnix)、endDay = localDay(meta.period.endUnix)；L = endDay − startDay、Y = L / 365.25。期間外的地震不影響 h(d)，nEvents 也只數資料裡的筆數（目前資料沒有期間外的紀錄）。",

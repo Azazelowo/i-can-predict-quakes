@@ -1,0 +1,4 @@
+# 統一用 LF，讓 Windows 和 GitHub Actions（Linux）看到的檔案位元組相同
+* text=auto eol=lf
+*.png binary
+*.ico binary

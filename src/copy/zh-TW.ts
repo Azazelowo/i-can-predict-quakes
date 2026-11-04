@@ -30,6 +30,7 @@ export const SITE = {
   name: '我也會地震預測',
   tagline: '輸入一則地震預言，看看隨便亂猜有多容易中',
   notForecastLink: '這不是地震預報',
+  skipLink: '跳到主要內容',
 } as const;
 
 export const EXPLAINER = {
@@ -118,6 +119,8 @@ export const TIME = {
     vague: '近期',
     unspecified: '沒說時間',
   },
+  /** 解析結果的時間類型不在選單裡時（例如「近期」「週末」），選單多一個「目前」選項 */
+  current: (label: string) => `目前：${label}`,
   withinDays: (n: string) => `${n} 天內`,
   month: (m: string) => `${m} 月`,
   until: (date: string) => `${date} 前`,
@@ -149,6 +152,7 @@ export const REGION = {
   taiwanName: '台灣及近海',
   taiwanOption: `台灣及近海（北緯 ${TAIWAN_BOX.latMin}–${TAIWAN_BOX.latMax} 度、東經 ${TAIWAN_BOX.lonMin}–${TAIWAN_BOX.lonMax} 度）`,
   current: (names: string) => `目前：${names}`,
+  groupMembers: (group: string, names: string) => `${group}包含：${names}。`,
   bufferLabel: '縣界外推',
   bufferOption: (km: number) => (km === 0 ? '0 公里（只算縣內）' : `${km} 公里`),
   bufferHelp: '震央在縣界外這個距離內，也算在範圍裡。',
@@ -307,6 +311,7 @@ export const OVERVIEW = {
   spectrumSub: '同一句話，「大」可以是有感就算，也可以是非常強的地震。命中率差這麼多，所以先給你整條光譜。',
   spectrumInvite: '點一種解讀就能看到完整分析；也可以在上面的確認卡直接選規模或震度。',
   analogy: (text: string, num: string, den: string) => `≈ ${text}（${num}/${den}）`,
+  analogyLabel: '生活換算',
   levelLabel: '算命師等級',
   consensusTitle: '模型共識',
   consensusHelp: '兩種算法各自的估計與 95% 區間。為什麼不一樣，請看下面的 M14。',
@@ -389,7 +394,8 @@ export const M1 = {
   legendMiss: '沒有發生',
   tableCaption: '每年的窗口命中情況',
   tableHead: ['年份', '命中的窗口', '窗口數', '比例'],
-  formula: (hits: string, windows: string, p: string) => `p̂ = 命中的窗口 ÷ 全部窗口 = ${hits} ÷ ${windows} = ${p}`,
+  /** result 含等號或不等號，例如「= 41.2%」「> 99.9%」（見 src/ui/format.ts 的 percentResult） */
+  formula: (hits: string, windows: string, result: string) => `p̂ = 命中的窗口 ÷ 全部窗口 = ${hits} ÷ ${windows} ${result}`,
   ciLine: (low: string, high: string) =>
     `95% 區間：以「年」為單位重新抽樣 ${BOOTSTRAP.replicates.toLocaleString('zh-TW')} 次（年區塊拔靴法）→ ${low}～${high}`,
   assumptions: (events: string) => [
@@ -412,10 +418,15 @@ export const M2 = {
   legendZero: '一次都沒有（沒中）',
   legendSome: '至少一次（中了）',
   axisCount: '發生次數',
+  /** 次數分布最後一欄：K 次以上 */
+  tickAtLeast: (k: string) => `≥${k}`,
+  countAtLeast: (k: string) => `${k} 次以上`,
   tableCaption: '固定速率模型下，窗口內發生次數的機率',
   tableHead: ['發生次數', '機率'],
   rate: (n: string, years: string, rate: string) => `λ = n ÷ Y = ${n} ÷ ${years} = ${rate} 次／年`,
-  prob: (rate: string, days: string, p: string) => `p = 1 − exp(−λ × T ÷ 365.25) = 1 − exp(−${rate} × ${days} ÷ 365.25) = ${p}`,
+  /** result 含等號或不等號，例如「= 53.0%」「> 99.9%」 */
+  prob: (rate: string, days: string, result: string) =>
+    `p = 1 − exp(−λ × T ÷ 365.25) = 1 − exp(−${rate} × ${days} ÷ 365.25) ${result}`,
   ciLine: (low: string, high: string) => `95% 區間（Garwood 精確區間）：${low}～${high}`,
   vsHigher: (diff: string) =>
     `比歷史回放（M1）高 ${diff}：地震常常成群發生，同一段時間一次來好幾個，所以「至少一次」的窗口比固定速率模型少。`,
@@ -452,6 +463,7 @@ export const M4 = {
   matrixMag: (m: string) => `≥ ${m}`,
   matrixClaim: '（這則預言）',
   factorsTitle: '灌水成分',
+  factorsUnspecified: '沒說多大時不計算灌水成分：先在上面的光譜點一種解讀，或在確認卡選規模或震度。',
   factorsAria: (count: string) => `灌水成分：${count} 個條件各自收緊後的命中率變化`,
   legendFrom: '原本',
   legendTo: '收緊後',
@@ -483,17 +495,26 @@ export const M8 = {
     `預言家很少只說一次。如果他每 ${days} 天就說一次「接下來 ${days} 天會…」，說了很多次之後，至少中一次幾乎是必然的。我們用兩種方式算：假設每次互相獨立（模型），以及直接拿歷史上連續的窗口來數（事實，保留地震成群發生的特性）。`,
   tableCaption: '說了 n 次以後：至少中一次的機率，以及平均中幾次',
   tableHead: ['說了幾次', '至少中一次：獨立假設', '至少中一次：歷史實際', '平均中幾次：獨立假設', '平均中幾次：歷史實際'],
+  /** 看得到的表格用兩層表頭（手機上比較不會擠成好幾行） */
+  tableFirst: '說了幾次',
+  tableGroups: ['至少中一次', '平均中幾次'],
+  tableSub: ['獨立假設', '歷史實際'],
   times: (n: string) => `${n} 次`,
+  /** 摘要列的重點數字：說 52 次，至少中一次的歷史比例 */
+  peek: (n: string, p: string) => `說 ${n} 次：${p}`,
   yearTag: '（約一年份）',
   histTitle: (n: string) => `一年份（連續 ${n} 次）會中幾次？`,
   histAria: (n: string, mode: string) => `連續 ${n} 次預言的命中次數分布；歷史上最常見的是中 ${mode} 次。`,
   legendHistorical: '歷史實際',
   legendBinomial: '獨立假設（二項分布）',
   axisHits: '猜中次數',
+  /** 次數太多、合併成區間時的標籤 */
+  binRange: (a: string, b: string) => `${a}–${b}`,
   histTableCaption: '一年份預言的命中次數分布',
   histTableHead: ['猜中次數', '歷史實際', '獨立假設'],
-  formula: (p: string, n: string, x: string, e: string) => [
-    `至少中一次 = 1 − (1 − p)^n = 1 − (1 − ${p})^${n} = ${x}`,
+  /** atLeastOne 含等號或不等號，例如「= 88.0%」「> 99.9%」 */
+  formula: (p: string, n: string, atLeastOne: string, e: string) => [
+    `至少中一次 = 1 − (1 − p)^n = 1 − (1 − ${p})^${n} ${atLeastOne}`,
     `平均中幾次 = n × p = ${n} × ${p} = ${e}`,
   ],
   assumptions: [
@@ -551,7 +572,12 @@ export const M12 = {
   ladderBelow: (p: string) => `未滿 ${p}`,
   here: '這則預言在這裡',
   scaleTitle: '生活機率尺',
+  scaleHelp: '越上面越容易發生；刻度依「勝算」的對數排列，所以很小和很大的機率都看得清楚。',
   scaleMarker: (p: string) => `這則預言：${p}`,
+  scaleItem: (text: string, fraction: string) => `${text}（${fraction}）`,
+  scaleAria: (p: string, closest: string) => `生活機率尺：這則預言的機率 ${p}，最接近「${closest}」。`,
+  scaleTableCaption: '生活事件的機率',
+  scaleTableHead: ['事件', '機率'],
   closest: '最接近',
   formula: [
     '等級：由上往下，找第一個「p ≥ 下限」的等級',
@@ -644,6 +670,7 @@ export const FOOTER = {
     '這不是地震預報。這裡算的是「隨便猜也會中」的背景機率：任何一週都差不多，不代表這週特別危險。地震發生的時間、地點和規模，目前都無法準確預測；官方地震資訊請見中央氣象署。',
   privacy: '本網站不會傳送、也不會保存你輸入的內容，所有計算都在你的瀏覽器裡完成。',
   dataTitle: '資料來源與授權',
+  licensesTitle: '授權',
   period: (from: string, to: string, timezone: string) => `資料期間：${from}～${to}（${timezone}）`,
   catalog: (source: string, count: string, type: string, minMl: string) =>
     `地震目錄：${source}，規模 ${minMl} 以上共 ${count} 筆（${type}）`,

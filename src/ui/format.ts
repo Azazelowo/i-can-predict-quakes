@@ -4,8 +4,8 @@
  */
 import { LEVELS } from '../core/constants';
 import { countyById, groupById } from '../core/regions';
-import { isoToDay, weekdayMon0 } from '../core/time';
-import type { Analogy, Claim, LevelId, RegionSpec, SizeSpec, TimeWindow } from '../core/types';
+import { isoToDay, weekdayMon0, yearOfDay } from '../core/time';
+import type { Analogy, Claim, LevelId, PeriodInfo, RegionSpec, SizeSpec, TimeWindow } from '../core/types';
 import { ANALOGY_TEXT, LEVEL_TEXT, M12, OVERVIEW, REGION, SIZE, TIME, UNITS, WEEKDAYS } from '../copy/zh-TW';
 
 const intFormat = new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 });
@@ -26,16 +26,40 @@ export function formatPercent(p: number): string {
   return `${(p * 100).toFixed(1)}%`;
 }
 
+/**
+ * 公式裡當「輸入」的機率：一般和 formatPercent 相同；很接近 0 或 1 時多給幾位，
+ * 讓讀者看得出不是剛好 0% 或 100%（例如 0.027%、99.970%）。
+ */
+export function formatPercentPrecise(p: number): string {
+  if (!Number.isFinite(p)) return '—';
+  if (p <= 0) return '0%';
+  if (p >= 1) return '100%';
+  if (p < 0.001) return `${formatSig(p * 100, 2)}%`;
+  if (p >= 0.9995) {
+    const q = 1 - p;
+    if (q < 1e-6) return '> 99.9999%';
+    const digits = Math.min(6, Math.ceil(-Math.log10(q)));
+    return `${(p * 100).toFixed(digits - 1)}%`;
+  }
+  return formatPercent(p);
+}
+
+/** 公式最後的結果：一般是「= 41.2%」；極端值改用不等號（「> 99.9%」「< 0.1%」），不會出現「= > 99.9%」。 */
+export function percentResult(p: number): string {
+  const text = formatPercent(p);
+  return text.startsWith('>') || text.startsWith('<') ? text : `= ${text}`;
+}
+
 /** 區間：a～b */
 export function formatPercentRange(low: number, high: number): string {
   return TIME.range(formatPercent(low), formatPercent(high));
 }
 
-/** 滑桿等使用者設定的機率：1% 以上一位小數，以下最多兩位（0.1%、0.25%）。 */
+/** 滑桿等使用者設定的機率：1% 以上最多一位小數（1%、97.5%），以下最多兩位（0.1%、0.75%），不留多餘的 0。 */
 export function formatPercentSetting(p: number): string {
   const v = p * 100;
-  if (v >= 1) return `${v.toFixed(1)}%`;
-  return `${v.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  const fixed = v.toFixed(v >= 1 ? 1 : 2);
+  return `${fixed.replace(/0+$/, '').replace(/\.$/, '')}%`;
 }
 
 /** 兩個機率的差，用「個百分點」表示，帶正負號（+11.8 個百分點）。 */
@@ -44,6 +68,21 @@ export function formatPoints(diff: number): string {
   const abs = Math.abs(diff * 100).toFixed(1);
   const sign = abs === '0.0' ? '' : diff > 0 ? '+' : '−';
   return UNITS.points(`${sign}${abs}`);
+}
+
+/** 兩個機率差的絕對值，用「個百分點」表示（11.8 個百分點），給「高／低 X」這種已經說明方向的句子用。 */
+export function formatPointsAbs(diff: number): string {
+  if (!Number.isFinite(diff)) return '—';
+  return UNITS.points(Math.abs(diff * 100).toFixed(1));
+}
+
+/** 資料期間的顯示文字：年數（31）、起訖年份（1995、2025）。endDay 不含，所以結束年取 endDay − 1。 */
+export function periodLabels(period: PeriodInfo): { years: string; from: string; to: string } {
+  return {
+    years: formatInt(Math.round(period.years)),
+    from: String(yearOfDay(period.startDay)),
+    to: String(yearOfDay(period.endDay - 1)),
+  };
 }
 
 /** 整數，加千分位（1,223）。 */

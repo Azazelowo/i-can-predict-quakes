@@ -92,15 +92,16 @@ def load_catalog(data_dir: Path, y0: int, y1: int, inputs: list) -> list[dict]:
     return events
 
 
-def load_felt(data_dir: Path, t0: int, t1: int, inputs: list) -> tuple[list[dict], int, int]:
-    """回傳 (紀錄, 無法解析而略過的筆數, 缺最大震度而記為 1 級的筆數)。
+def load_felt(data_dir: Path, t0: int, t1: int, inputs: list) -> tuple[list[dict], int, int, int]:
+    """回傳 (紀錄, 無法解析而略過的筆數, 缺最大震度而記為 1 級的筆數, 最大震度 0 級而排除的筆數)。
 
     2014 年 7 月有幾筆「小區域有感地震」沒有填最大震度。它們既然是有感地震，震度至少 1 級，
     所以記為 1（最保守）：只影響「有感」這個解讀，不會灌高「震度 3 級以上」等較高門檻。
+    最大震度 0 級代表沒有任何測站有感，不是有感地震，所以排除（所有門檻都 ≥ 1，排除與否不影響計算）。
     """
     path = data_dir / FELT_CSV
     inputs.append({"file": FELT_CSV.as_posix(), "sha256": sha256(path)})
-    rows, skipped, blank = [], 0, 0
+    rows, skipped, blank, zero = [], 0, 0, 0
     with open(path, encoding="big5", errors="replace", newline="") as fh:
         reader = csv.reader(fh)
         next(reader)  # 編號,地震時間,經度,緯度,規模,深度,最大震度,位置
@@ -114,10 +115,13 @@ def load_felt(data_dir: Path, t0: int, t1: int, inputs: list) -> tuple[list[dict
                 skipped += 1
                 continue
             if t0 <= t < t1:
+                if level == 0:
+                    zero += 1
+                    continue
                 rows.append({"t": t, "intensity": level, "ml": ml})
                 blank += raw == ""
     rows.sort(key=lambda r: (r["t"], -r["intensity"]))
-    return rows, skipped, blank
+    return rows, skipped, blank, zero
 
 
 # ------------------------------------------------------------------ counties
@@ -288,7 +292,7 @@ def main() -> None:
 
     events = load_catalog(data_dir, y0, y1, inputs)
     dup = len(events) - len({(e["t"], e["lat"], e["lon"]) for e in events})
-    felt, felt_skipped, felt_blank = load_felt(data_dir, t0, t1, inputs)
+    felt, felt_skipped, felt_blank, felt_zero = load_felt(data_dir, t0, t1, inputs)
     counties, draw = load_counties(inputs)
     near = near_index(events, counties)
 
@@ -322,6 +326,7 @@ def main() -> None:
                     "source": "交通部中央氣象署 地震目錄（開放資料 E-A0073）",
                     "url": "https://opendata.cwa.gov.tw/"},
         "felt": {"count": len(felt), "skipped": felt_skipped, "missingIntensityAsOne": felt_blank,
+                 "droppedZeroIntensity": felt_zero,
                  "note": "全台任一地點的最大震度；2020 年起 5、6 級分弱／強，5 弱記為 5、5 強記為 5.5；"
                          "缺最大震度的小區域有感地震記為 1",
                  "source": "交通部中央氣象署 有感地震報告彙整",
@@ -341,7 +346,8 @@ def main() -> None:
     write_json("meta.json", meta)
 
     print(f"catalog: {len(events)} events (ML ≥ {MIN_ML}), duplicates={dup}, near pairs={len(near['event'])}")
-    print(f"felt: {len(felt)} records, skipped={felt_skipped}, missing intensity counted as 1: {felt_blank}")
+    print(f"felt: {len(felt)} records, skipped={felt_skipped}, missing intensity counted as 1: {felt_blank}, "
+          f"dropped intensity 0: {felt_zero}")
     print(f"counties: {len(counties)}, map points={sum(len(r) // 2 for c in draw for r in c['rings'])}")
     print("sizes (bytes):", sizes)
 

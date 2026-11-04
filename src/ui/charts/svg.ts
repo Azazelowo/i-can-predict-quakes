@@ -40,13 +40,17 @@ export function svgRoot(width: number, height: number, label: string, body: Html
   return html`<svg class="chart-svg${extraClass ? ` ${extraClass}` : ''}" viewBox="0 0 ${fx(width)} ${fx(height)}" width="100%" role="img" aria-label="${label}" focusable="false">${body}</svg>`;
 }
 
-/** 視覺上隱藏、給螢幕報讀器的表格（第一欄是列標題） */
+/**
+ * 視覺上隱藏、給螢幕報讀器的表格（第一欄是列標題）。
+ * 隱藏的是外層 div：表格的寬度由內容決定，直接對 table 套 sr-only 會撐出水平捲軸；
+ * 也不能把 table 改成 display: block，那會讓部分瀏覽器丟掉表格語意。
+ */
 export function srTable(caption: string, head: readonly string[], rows: readonly (readonly string[])[]): SafeHtml {
-  return html`<table class="sr-only"><caption>${caption}</caption><thead><tr>${head.map(
+  return html`<div class="sr-only"><table><caption>${caption}</caption><thead><tr>${head.map(
     (h) => html`<th scope="col">${h}</th>`,
   )}</tr></thead><tbody>${rows.map(
     (row) => html`<tr>${row.map((cell, i) => (i === 0 ? html`<th scope="row">${cell}</th>` : html`<td>${cell}</td>`))}</tr>`,
-  )}</tbody></table>`;
+  )}</tbody></table></div>`;
 }
 
 /** 直條：底部方角、頂端 4px 圓角（資料端圓角） */

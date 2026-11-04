@@ -7,7 +7,7 @@
  */
 import type { Interpretation, SizeSpec } from '../../core/types';
 import { M4, SPECTRUM_LABELS } from '../../copy/zh-TW';
-import { formatPercent } from '../format';
+import { formatPercent, formatPercentShort } from '../format';
 import { html, type SafeHtml } from '../html';
 import { PERCENT_TICKS, fx, scale, tickAnchor } from './svg';
 
@@ -46,7 +46,7 @@ export function spectrumChart(items: readonly Interpretation[], current: SizeSpe
 
   const grid = PERCENT_TICKS.map(
     (t, i) => html`<line class="grid" x1="${fx(x(t))}" x2="${fx(x(t))}" y1="${fx(axisH - 4)}" y2="${fx(height - 4)}"/>
-      <text class="tick" x="${fx(x(t))}" y="14" text-anchor="${tickAnchor(i, PERCENT_TICKS.length)}">${formatPercent(t)}</text>`,
+      <text class="tick" x="${fx(x(t))}" y="14" text-anchor="${tickAnchor(i, PERCENT_TICKS.length)}">${formatPercentShort(t)}</text>`,
   );
 
   const rows = items.map((item, i) => {
