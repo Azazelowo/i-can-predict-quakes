@@ -1,0 +1,200 @@
+[
+  {
+    "id": "tw-m5-strict-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-11-10", "days": 7 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 5.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "tw-m5-strict-1d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "today", "start": "2026-11-04", "end": "2026-11-04", "days": 1 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 5.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "tw-m5.5-strict-30d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-12-03", "days": 30 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 5.5, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "tw-m7-strict-365d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2027-11-03", "days": 365 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 7.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "tw-m6-strict-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "nextWeek", "start": "2026-11-09", "end": "2026-11-15", "days": 7 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 6.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "tw-m6-strict-58d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "thisYear", "start": "2026-11-04", "end": "2026-12-31", "days": 58 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 6.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "tw-m4.5-lenient-1d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "tomorrow", "start": "2026-11-05", "end": "2026-11-05", "days": 1 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 4.5, "tolerance": "lenient" }
+    }
+  },
+  {
+    "id": "tw-m6-lenient-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-11-10", "days": 7 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 6.0, "tolerance": "lenient" }
+    }
+  },
+  {
+    "id": "tw-m7-lenient-30d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "vague", "start": "2026-11-04", "end": "2026-12-03", "days": 30 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 7.0, "tolerance": "lenient" }
+    }
+  },
+  {
+    "id": "tw-m5-lenient-365d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2027-11-03", "days": 365 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 5.0, "tolerance": "lenient" }
+    }
+  },
+  {
+    "id": "tw-m3.5-strict-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-11-10", "days": 7 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "magnitude", "value": 3.5, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "U-b0-m5-30d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-12-03", "days": 30 },
+      "region": { "kind": "counties", "ids": ["U"], "bufferKm": 0 },
+      "size": { "kind": "magnitude", "value": 5.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "U-b30-m5-30d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-12-03", "days": 30 },
+      "region": { "kind": "counties", "ids": ["U"], "bufferKm": 30 },
+      "size": { "kind": "magnitude", "value": 5.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "U-b60-m5-30d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-12-03", "days": 30 },
+      "region": { "kind": "counties", "ids": ["U"], "bufferKm": 60 },
+      "size": { "kind": "magnitude", "value": 5.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "east-b30-m6-lenient-31d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "nextMonth", "start": "2026-12-01", "end": "2026-12-31", "days": 31 },
+      "region": { "kind": "counties", "ids": ["G", "U", "V"], "bufferKm": 30, "group": "east" },
+      "size": { "kind": "magnitude", "value": 6.0, "tolerance": "lenient" }
+    }
+  },
+  {
+    "id": "OJ-b30-m4.5-27d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "thisMonth", "start": "2026-11-04", "end": "2026-11-30", "days": 27 },
+      "region": { "kind": "counties", "ids": ["O", "J"], "bufferKm": 30 },
+      "size": { "kind": "magnitude", "value": 4.5, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "X-b30-m7-1d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "today", "start": "2026-11-04", "end": "2026-11-04", "days": 1 },
+      "region": { "kind": "counties", "ids": ["X"], "bufferKm": 30 },
+      "size": { "kind": "magnitude", "value": 7.0, "tolerance": "strict" }
+    }
+  },
+  {
+    "id": "tw-i1-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-11-10", "days": 7 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "intensity", "value": 1 }
+    }
+  },
+  {
+    "id": "tw-i4-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "nextWeek", "start": "2026-11-09", "end": "2026-11-15", "days": 7 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "intensity", "value": 4 }
+    }
+  },
+  {
+    "id": "tw-i5.5-30d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-12-03", "days": 30 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "intensity", "value": 5.5 }
+    }
+  },
+  {
+    "id": "U-i4-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "withinDays", "start": "2026-11-04", "end": "2026-11-10", "days": 7 },
+      "region": { "kind": "counties", "ids": ["U"], "bufferKm": 30 },
+      "size": { "kind": "intensity", "value": 4 }
+    }
+  },
+  {
+    "id": "tw-unspec-7d",
+    "claim": {
+      "issuedAt": "2026-11-04",
+      "time": { "kind": "nextWeek", "start": "2026-11-09", "end": "2026-11-15", "days": 7 },
+      "region": { "kind": "taiwan" },
+      "size": { "kind": "unspecified" }
+    }
+  }
+]
