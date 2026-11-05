@@ -48,8 +48,10 @@
   }
 }
 
+/* 跟隨系統（auto，或還沒載入設定）時，依系統的深色模式切換 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]),
+  :root[data-theme="auto"] {
     --bg: #121019;
     --surface: #1c1926;
     --surface-2: #231f30;
@@ -75,6 +77,130 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 6px 24px rgb(0 0 0 / 25%);
     --heat-max: 52;
   }
+}
+
+/*
+ * 使用者自選的主題（存在這台裝置，見 src/app/prefs.ts）。
+ * 對比由 tests/theme-contrast.test.ts 直接讀這個檔案檢查：文字 ≥ 4.5:1、圖形與焦點框 ≥ 3:1；
+ * 「範圍內」的顏色一律和主色不同色相（叢林綠的主色是綠，所以範圍內改用河藍）。
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121019;
+  --surface: #1c1926;
+  --surface-2: #231f30;
+  --text: #ece9f6;
+  --muted: #a7a2ba;
+  --border: #2e2a3d;
+  --border-strong: #463f5c;
+  --accent: #a48bff;
+  --accent-hover: #b9a6ff;
+  --accent-soft: #2a2342;
+  --on-accent: #121019;
+  --region: #3cc9b5;
+  --region-ink: #5fd8c6;
+  --region-soft: #12332f;
+  --note: #f0b35a;
+  --note-soft: #3a2a12;
+  --track: #2a2638;
+  --land: #2a2638;
+  --model: #a9b2cc;
+  --modifier: #b4afc6;
+  --modifier-soft: #2b2836;
+  --focus: #b9a6ff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 6px 24px rgb(0 0 0 / 25%);
+  --heat-max: 52;
+}
+
+/* 沙漠黃：沙色底、赭紅主色、綠洲綠代表範圍內 */
+:root[data-theme="desert"] {
+  color-scheme: light;
+  --bg: #f3e9d2;
+  --surface: #fffaee;
+  --surface-2: #f8efd9;
+  --text: #2b2114;
+  --muted: #63533a;
+  --border: #e8d9b8;
+  --border-strong: #cdb68a;
+  --accent: #9a4414;
+  --accent-hover: #80380f;
+  --accent-soft: #f6dfc6;
+  --on-accent: #ffffff;
+  --region: #2e7a59;
+  --region-ink: #215c41;
+  --region-soft: #dcecd8;
+  --note: #765300;
+  --note-soft: #f9eabd;
+  --track: #ece0c3;
+  --land: #ede2c6;
+  --model: #5c5646;
+  --modifier: #63533a;
+  --modifier-soft: #f0e4cb;
+  --focus: #9a4414;
+  --shadow: 0 1px 2px rgb(60 40 10 / 8%), 0 6px 24px rgb(60 40 10 / 6%);
+  --heat-max: 60;
+}
+
+/* 叢林綠：淡葉色底、森林綠主色、河藍代表範圍內 */
+:root[data-theme="jungle"] {
+  color-scheme: light;
+  --bg: #e8f0e3;
+  --surface: #fbfdf9;
+  --surface-2: #eff5eb;
+  --text: #16241a;
+  --muted: #4b5f4f;
+  --border: #d3e2ce;
+  --border-strong: #afc6a9;
+  --accent: #2d6a33;
+  --accent-hover: #235528;
+  --accent-soft: #dbeed7;
+  --on-accent: #ffffff;
+  --region: #1d6d98;
+  --region-ink: #175679;
+  --region-soft: #d5e9f4;
+  --note: #7f5000;
+  --note-soft: #f9eed2;
+  --track: #dfeada;
+  --land: #dfeada;
+  --model: #4d5f54;
+  --modifier: #4b5f4f;
+  --modifier-soft: #e2ecde;
+  --focus: #2d6a33;
+  --shadow: 0 1px 2px rgb(20 50 25 / 8%), 0 6px 24px rgb(20 50 25 / 6%);
+  --heat-max: 60;
+}
+
+/* 科技藍：深藍底、亮藍主色、薄荷綠代表範圍內 */
+:root[data-theme="tech"] {
+  color-scheme: dark;
+  --bg: #0a1020;
+  --surface: #101a2e;
+  --surface-2: #152238;
+  --text: #e4ecfa;
+  --muted: #9db0cf;
+  --border: #1e2c46;
+  --border-strong: #304566;
+  --accent: #4ea3ff;
+  --accent-hover: #79bbff;
+  --accent-soft: #13284a;
+  --on-accent: #061021;
+  --region: #34d399;
+  --region-ink: #5ee3b1;
+  --region-soft: #0d3328;
+  --note: #f4b650;
+  --note-soft: #36290f;
+  --track: #1a2742;
+  --land: #1a2742;
+  --model: #a3b6d6;
+  --modifier: #aebcd4;
+  --modifier-soft: #192640;
+  --focus: #79bbff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 24px rgb(0 0 0 / 30%);
+  --heat-max: 48;
 }
 
 /* ============================================================ base */
@@ -212,11 +338,19 @@ textarea {
   font-size: 1.05rem;
 }
 
+.header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-top: 10px;
+}
+
 .not-forecast {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
   min-height: 44px;
   padding: 0 4px;
   font-size: 0.875rem;
@@ -233,8 +367,11 @@ textarea {
 
 /* ============================================================ layout of main */
 
+/*
+ * main 裡分兩欄：.col-side（說明、輸入、確認卡）與 .col-main（結果、為什麼看起來很準）。
+ * 單欄時兩欄上下接著排，順序和 DOM 一樣；雙欄見下面的 data-layout="wide"。
+ */
 main {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -246,19 +383,67 @@ main:focus {
   outline: none;
 }
 
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.col-main {
+  position: relative;
+}
+
 /* 空的區塊（例如還沒有結果時）不佔間距 */
-main > div:empty:not(.chart-probe) {
+.col > div:empty:not(.chart-probe) {
   display: none;
 }
 
-/* 量圖表寬度用：寬度 = 卡片內容寬度（扣掉頁面左右留白、卡片內距與邊框） */
+/* 量圖表寬度用：寬度 = 結果欄裡卡片的內容寬度（扣掉卡片內距與邊框） */
 .chart-probe {
   position: absolute;
   top: 0;
-  left: calc(var(--gutter) + var(--card-pad) + 1px);
-  right: calc(var(--gutter) + var(--card-pad) + 1px);
+  left: calc(var(--card-pad) + 1px);
+  right: calc(var(--card-pad) + 1px);
   height: 0;
   visibility: hidden;
+}
+
+/*
+ * 雙欄（寬螢幕）：左邊輸入與確認卡、右邊結果，改一項就能直接看到右邊的數字變化。
+ * 斷點要和 src/app/controller.ts 的 WIDE_QUERY 一致。
+ */
+@media (min-width: 1100px) {
+  :root[data-layout="wide"] .wrap {
+    max-width: 1280px;
+  }
+
+  :root[data-layout="wide"] .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* 左欄比較窄：三步驟改成一步一列 */
+  :root[data-layout="wide"] .col-side .steps {
+    grid-template-columns: 1fr;
+  }
+
+  :root[data-layout="wide"] .col-side .step {
+    flex-direction: row;
+  }
+
+  :root[data-layout="wide"] .footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 螢幕不夠寬時雙欄不會生效，就不顯示這個選項（兩個 class：要蓋過後面 .pref 的 display） */
+@media (max-width: 1099.98px) {
+  .pref.pref-layout {
+    display: none;
+  }
 }
 
 /* ============================================================ cards */
@@ -378,6 +563,61 @@ main > div:empty:not(.chart-probe) {
 
 .btn-secondary:hover {
   border-color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 長得像連結的按鈕（打開使用規範；不改網址） */
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.btn-link:hover {
+  color: var(--accent-hover);
+}
+
+/* 頁首的顯示設定 */
+.prefs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  font-size: 0.875rem;
+}
+
+.pref {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pref-label {
+  color: var(--muted);
+}
+
+.pref select {
+  min-height: 40px;
+  padding: 0 8px;
+}
+
+.scope-note {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .field-label {
@@ -1832,6 +2072,278 @@ input[type="range"] {
   fill: var(--accent);
 }
 
+/* ============================================================ not-a-forecast, every N, compare */
+
+.not-forecast-callout {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--note);
+  background: var(--note-soft);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.every-n {
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+
+.compare-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.compare-row {
+  display: grid;
+  grid-template-columns: 4.6em minmax(0, 1fr) auto;
+  grid-template-areas:
+    "p label level"
+    "bar bar bar";
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.compare-row.is-current {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.compare-p {
+  grid-area: p;
+  font-weight: 800;
+  text-align: right;
+}
+
+.compare-label {
+  grid-area: label;
+}
+
+.compare-row.is-current .compare-label {
+  font-weight: 750;
+}
+
+.compare-level {
+  grid-area: level;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.compare-bar {
+  grid-area: bar;
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.compare-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--model);
+}
+
+.compare-row.is-current .compare-bar > span {
+  background: var(--accent);
+}
+
+/* ============================================================ gate (先確認再算) */
+
+.gate-card {
+  border-left: 4px solid var(--note);
+}
+
+.gate-card:focus {
+  outline: none;
+}
+
+.gate-card > p {
+  margin-top: 8px;
+}
+
+.gate-hint {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.gate-card .actions {
+  margin-top: 16px;
+}
+
+/* ============================================================ why prophecies look right */
+
+.why {
+  padding: var(--card-pad);
+  border-radius: var(--radius);
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-2);
+}
+
+.why-title {
+  font-size: 1.2rem;
+  font-weight: 750;
+}
+
+.why-intro {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.why-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.why-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.why-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.why-item-title {
+  font-weight: 700;
+}
+
+.why-item-text {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* ============================================================ terms dialog */
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(8 6 16 / 60%);
+  overflow-y: auto;
+}
+
+.modal {
+  width: 100%;
+  max-width: 580px;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: var(--card-pad);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 48px rgb(0 0 0 / 35%);
+}
+
+.modal:focus {
+  outline: none;
+}
+
+.modal-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.modal-intro {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.terms-list {
+  margin: 14px 0 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 12px;
+}
+
+.terms-item-title {
+  font-weight: 750;
+}
+
+.terms-links {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
+}
+
+.terms-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 650;
+}
+
+.terms-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.terms-check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.modal-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-note {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 /* ============================================================ footer */
 
 .site-footer {
@@ -1894,6 +2406,11 @@ input[type="range"] {
   align-items: center;
   min-height: 44px;
   font-weight: 650;
+}
+
+.resource-list a {
+  display: inline-block;
+  padding: 2px 0;
 }
 
 /* ============================================================ motion */

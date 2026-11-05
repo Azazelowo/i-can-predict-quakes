@@ -26,6 +26,7 @@ export function inputCardHtml(state: AppState): SafeHtml {
   const message = state.inputMessage;
   return html`<section class="card input-card" aria-labelledby="input-title">
     <h2 class="card-title" id="input-title">${INPUT.title}</h2>
+    <p class="scope-note">${INPUT.scope}</p>
     <form class="claim-form" data-form="claim" novalidate>
       <label class="field-label sr-only" for="claim-text">${INPUT.label}</label>
       <textarea id="claim-text" class="claim-input" name="claim" rows="3" maxlength="${MAX_INPUT_LENGTH}"
@@ -33,6 +34,7 @@ export function inputCardHtml(state: AppState): SafeHtml {
         enterkeyhint="go">${state.text}</textarea>
       <div class="input-actions">
         <button type="submit" class="btn btn-primary">${INPUT.submit}</button>
+        <button type="button" class="btn btn-secondary" data-action="clear" aria-label="${INPUT.clearLabel}">${INPUT.clear}</button>
         <span class="kbd-hint">${INPUT.shortcut}</span>
       </div>
       <p class="input-message${message ? ` is-${message.kind}` : ''}" role="status">${message?.text ?? ''}</p>

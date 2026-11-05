@@ -10,6 +10,8 @@ import { BAYES_DEFAULTS } from '../core/constants';
 import type { BayesParams, Claim, DataBundle, ParseResult, Results, Span } from '../core/types';
 import type { TimeError } from './edit';
 import { emptyNotes, type Notes } from './notes';
+import type { Prefs } from './prefs';
+import type { GateKind } from './quality';
 
 export type Phase = 'loading' | 'ready' | 'error';
 export type SpanSlot = Span['slot'];
@@ -69,10 +71,22 @@ export interface AppState {
 
   /** 圖表可用的寬度（CSS px），由實際版面量得 */
   chartWidth: number;
+
+  /** 需要先確認才顯示結果（只提到國外、看不出是預言、說法互相矛盾）；null = 直接顯示 */
+  gate: GateKind | null;
+  /** 顯示設定與是否已同意使用規範（存在這台裝置） */
+  prefs: Prefs;
+  /** 使用規範對話框是否打開、勾選框是否已勾 */
+  termsOpen: boolean;
+  termsChecked: boolean;
 }
 
-export function initialState(issuedAt: string): AppState {
+export function initialState(issuedAt: string, prefs: Prefs, termsOpen: boolean): AppState {
   return {
+    gate: null,
+    prefs,
+    termsOpen,
+    termsChecked: false,
     phase: 'loading',
     loadError: null,
     data: null,

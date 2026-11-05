@@ -5,14 +5,17 @@
  * 文案一律是「就算隨便亂猜也會中的機率」，不寫成「發生地震的機率」。
  */
 import type { AppState } from '../app/state';
-import type { Factor, Results } from '../core/types';
+import { DEFAULT_BUFFER_KM } from '../core/constants';
+import type { DataBundle, Factor, RegionSpec, Results, SizeSpec } from '../core/types';
 import { OVERVIEW } from '../copy/zh-TW';
+import { hitRate, level } from '../modes/index';
 import { consensusChart } from './charts/consensus';
 import { spectrumChart, spectrumLegend } from './charts/spectrum';
 import {
   analogyLine,
   describeClaim,
   formatBits,
+  formatFixed,
   formatInt,
   formatPercent,
   formatPercentRange,
@@ -67,7 +70,97 @@ function headline(results: Results): SafeHtml {
   }
   return html`<p class="big-number">${p}</p>
     <p class="headline-lead">${OVERVIEW.empiricalLead(p)}</p>
+    <p class="every-n">${everyN(h.p)}</p>
     <p class="headline-sub">${OVERVIEW.empiricalSub(years, from, to, p)}</p>`;
+}
+
+/** 「平均每猜 N 次，就會中 1 次」：N = 1 ÷ p；9 成以上直接說幾乎每次都會中 */
+export function everyN(p: number): string {
+  if (p >= 0.9) return OVERVIEW.everyNAlmost;
+  const n = 1 / p;
+  return OVERVIEW.everyN(n < 10 ? formatFixed(n, 1) : formatInt(n));
+}
+
+// ================================================================ 對照組
+
+interface Reference {
+  key: keyof typeof OVERVIEW.compareRefs;
+  region: RegionSpec;
+  size: SizeSpec;
+  days: number;
+}
+
+/** 對照用的幾句預言：由寬鬆到精確，讓使用者知道這則預言的命中率算高還是低 */
+const REFERENCES: readonly Reference[] = [
+  { key: 'weekFelt', region: { kind: 'taiwan' }, size: { kind: 'intensity', value: 1 }, days: 7 },
+  { key: 'monthM5', region: { kind: 'taiwan' }, size: { kind: 'magnitude', value: 5, tolerance: 'strict' }, days: 30 },
+  {
+    key: 'weekHualienM6',
+    region: { kind: 'counties', ids: ['U'], bufferKm: DEFAULT_BUFFER_KM },
+    size: { kind: 'magnitude', value: 6, tolerance: 'strict' },
+    days: 7,
+  },
+  {
+    key: 'dayTaipeiM6',
+    region: { kind: 'counties', ids: ['A'], bufferKm: DEFAULT_BUFFER_KM },
+    size: { kind: 'magnitude', value: 6, tolerance: 'strict' },
+    days: 1,
+  },
+  { key: 'yearM7', region: { kind: 'taiwan' }, size: { kind: 'magnitude', value: 7, tolerance: 'strict' }, days: 365 },
+];
+
+interface ReferenceRate {
+  label: string;
+  p: number;
+  /** 用來判斷「這則預言就是其中一句」 */
+  spec: string;
+}
+
+/** 對照組和預言無關，每份資料只算一次 */
+const referenceCache = new WeakMap<DataBundle, ReferenceRate[]>();
+
+function specKey(region: RegionSpec, size: SizeSpec): string {
+  return JSON.stringify([region, size]);
+}
+
+function referenceRates(data: DataBundle): ReferenceRate[] {
+  let rows = referenceCache.get(data);
+  if (!rows) {
+    rows = REFERENCES.map((r) => ({
+      label: OVERVIEW.compareRefs[r.key],
+      p: hitRate(r.region, r.size, r.days, data).p,
+      spec: specKey(r.region, r.size),
+    }));
+    referenceCache.set(data, rows);
+  }
+  return rows;
+}
+
+function compareSection(results: Results, data: DataBundle | null): SafeHtml {
+  const h = results.headline;
+  if (!data || h.source !== 'empirical' || h.p === null) return html``;
+  const p = h.p;
+  const mine = specKey(results.claim.region, results.claim.size);
+  // 這則預言和某一句對照組一模一樣（同地點、同大小、同機率）時，只列這則預言，不重複
+  const refs = referenceRates(data).filter((r) => !(r.spec === mine && r.p === p));
+  const rows = [
+    ...refs.map((r) => ({ label: r.label, p: r.p, current: false })),
+    { label: `${describeClaim(results.claim)}${OVERVIEW.compareThis}`, p, current: true },
+  ].sort((a, b) => b.p - a.p);
+  return html`<section class="ov-section" aria-labelledby="ov-compare">
+    <h3 class="section-title" id="ov-compare">${OVERVIEW.compareTitle}</h3>
+    <p class="ov-help">${OVERVIEW.compareHelp}</p>
+    <ol class="compare-list">
+      ${rows.map(
+        (r) => html`<li class="compare-row${r.current ? ' is-current' : ''}"${r.current ? html` aria-current="true"` : ''}>
+          <span class="compare-bar" aria-hidden="true"><span style="width:${Math.max(1, Math.round(r.p * 100))}%"></span></span>
+          <span class="compare-p">${formatPercent(r.p)}</span>
+          <span class="compare-label">${r.label}</span>
+          <span class="compare-level">${levelName(level(r.p))}</span>
+        </li>`,
+      )}
+    </ol>
+  </section>`;
 }
 
 function analogyAndLevel(results: Results): SafeHtml {
@@ -169,9 +262,11 @@ export function overviewHtml(state: AppState, results: Results, width: number): 
       <h2 class="overview-label" id="overview-title">${OVERVIEW.title}</h2>
       <p class="claim-desc">${OVERVIEW.computing}${describeClaim(results.claim)}</p>
       <div class="headline" id="headline" tabindex="-1" aria-live="polite" aria-atomic="true">${headline(results)}</div>
+      <p class="not-forecast-callout">${OVERVIEW.notForecast}</p>
       ${analogyAndLevel(results)}
     </div>
     ${unspecified ? spectrumSection(results, width) : ''}
+    ${compareSection(results, state.data)}
     ${consensusSection(results, width)}
     ${unspecified ? '' : factorsSection(results)}
     ${bayesSection(results)}

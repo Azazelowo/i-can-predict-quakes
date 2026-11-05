@@ -18,7 +18,7 @@ import { confirmCardHtml } from '../ui/confirm';
 import { morphChildren, morphElement, scrollToElement } from '../ui/dom';
 import { footerHtml } from '../ui/footer';
 import { explainerHtml, headerHtml } from '../ui/header';
-import { html } from '../ui/html';
+import { html, type SafeHtml } from '../ui/html';
 import { inputCardHtml } from '../ui/input';
 import { miniMapHtml } from '../ui/map';
 import { resultsHtml, singleCardHtml } from '../ui/results';
@@ -35,21 +35,42 @@ import {
   sizeWithValue,
   type TimeEdit,
 } from './edit';
-import { bucketFlags, notesForRestoredClaim, withCode, withoutCodes } from './notes';
+import { bucketFlags, emptyNotes, notesForRestoredClaim, withCode, withoutCodes } from './notes';
+import {
+  LAYOUTS,
+  THEMES,
+  TERMS_VERSION,
+  applyPrefs,
+  loadPrefs,
+  savePrefs,
+  termsAccepted,
+  type LayoutId,
+  type ThemeId,
+} from './prefs';
+import { assessParse } from './quality';
 import { shareText, shareUrl } from './share';
 import { initialState, isCardId, type AppState, type CardId, type SpanSlot } from './state';
 import { decodeClaim, encodeClaim } from './url';
 import { sliderValue, type BayesParam } from '../ui/sliders';
+import { gateHtml } from '../ui/gate';
+import { termsHtml } from '../ui/terms';
+import { whyHtml } from '../ui/why';
 
 interface Slots {
+  header: HTMLElement;
   main: HTMLElement;
   probe: HTMLElement;
   explainer: HTMLElement;
   input: HTMLElement;
   confirm: HTMLElement;
   results: HTMLElement;
+  why: HTMLElement;
   footer: HTMLElement;
+  terms: HTMLElement;
 }
+
+/** 雙欄版面生效的螢幕寬度（要和 styles.css 的 @media (min-width: 1100px) 一致） */
+const WIDE_QUERY = '(min-width: 1100px)';
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
@@ -90,30 +111,46 @@ class App {
   private fallbackTimer = 0;
   private afterRender: (() => void)[] = [];
   private resizeTimer = 0;
+  /** 使用規範關掉後，焦點回到打開它的按鈕 */
+  private termsReturnFocus: HTMLElement | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
-    this.state = initialState(todayIso());
+    const prefs = loadPrefs();
+    applyPrefs(prefs);
+    // 第一次使用（或使用規範改版後）先看使用規範
+    this.state = initialState(todayIso(), prefs, !termsAccepted(prefs));
   }
 
   start(): void {
-    this.root.innerHTML = html`${headerHtml()}
-      <main id="main" class="wrap" tabindex="-1">
-        <div class="chart-probe" aria-hidden="true"></div>
-        <div id="explainer-slot"></div>
-        <div id="input-slot"></div>
-        <div id="confirm-slot"></div>
-        <div id="results-slot" class="results"></div>
+    // 兩欄：左邊（說明、輸入、確認卡）、右邊（結果、為什麼看起來很準）。
+    // 單欄時照 DOM 順序排下來，所以順序和原本一樣。
+    this.root.innerHTML = html`${headerHtml(this.state.prefs)}
+      <main id="main" class="wrap layout" tabindex="-1">
+        <div class="col col-side">
+          <div id="explainer-slot"></div>
+          <div id="input-slot"></div>
+          <div id="confirm-slot"></div>
+        </div>
+        <div class="col col-main">
+          <div class="chart-probe" aria-hidden="true"></div>
+          <div id="results-slot" class="results"></div>
+          <div id="why-slot"></div>
+        </div>
       </main>
-      <footer class="site-footer" id="disclaimer" tabindex="-1"></footer>`.value;
+      <footer class="site-footer" id="disclaimer" tabindex="-1"></footer>
+      <div id="terms-slot"></div>`.value;
     this.slots = {
+      header: must(this.root, '.site-header'),
       main: must(this.root, '#main'),
       probe: must(this.root, '.chart-probe'),
       explainer: must(this.root, '#explainer-slot'),
       input: must(this.root, '#input-slot'),
       confirm: must(this.root, '#confirm-slot'),
       results: must(this.root, '#results-slot'),
+      why: must(this.root, '#why-slot'),
       footer: must(this.root, '#disclaimer'),
+      terms: must(this.root, '#terms-slot'),
     };
     this.bind();
     this.restoreFromHash(window.location.hash);
@@ -193,6 +230,8 @@ class App {
     s.source = null;
     // 連結不含原文；清掉輸入框裡上一則預言的文字，免得和確認卡上的解讀對不起來
     s.text = '';
+    // 分享連結只有已經確認過的解讀，不需要再攔
+    s.gate = null;
     s.issuedAt = claim.issuedAt;
     s.notes = notesForRestoredClaim(claim);
     s.edited = new Set();
@@ -239,12 +278,43 @@ class App {
     s.edited = new Set();
     s.timeError = null;
     s.inputMessage = null;
+    // 只提到國外、看不出是預言、說法互相矛盾：先請使用者確認，不直接給數字
+    s.gate = assessParse(text, parse);
     this.recompute();
     this.syncHash();
     this.invalidate();
     this.afterRender.push(() => {
-      const card = document.getElementById('confirm-card');
-      if (card) scrollToElement(card);
+      // 兩欄時確認卡和結果並排：捲到整個內容的頂端，不然右欄的主數字會被捲出畫面
+      const target = this.isTwoColumn() ? this.slots.main : document.getElementById('confirm-card');
+      if (target) scrollToElement(target);
+    });
+  }
+
+  /** 清空：回到剛打開網站的樣子（不動顯示設定） */
+  private clear(): void {
+    const s = this.state;
+    s.text = '';
+    s.source = null;
+    s.fromLink = false;
+    s.claim = null;
+    s.results = null;
+    s.notes = emptyNotes();
+    s.edited = new Set();
+    s.timeError = null;
+    s.inputMessage = null;
+    s.computeError = null;
+    s.gate = null;
+    s.open = new Set();
+    s.copyStatus = 'idle';
+    try {
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    } catch {
+      // 某些嵌入環境不允許改網址
+    }
+    this.invalidate();
+    this.afterRender.push(() => {
+      window.scrollTo({ top: 0 });
+      document.getElementById('claim-text')?.focus();
     });
   }
 
@@ -254,6 +324,8 @@ class App {
     const s = this.state;
     s.claim = next;
     s.edited.add(slot);
+    // 在確認卡上改了任何一項，就算確認過了
+    s.gate = null;
     this.recompute();
     this.syncHash();
     this.invalidate();
@@ -366,6 +438,70 @@ class App {
     this.renderCard('m10');
   }
 
+  // ============================================================== 顯示設定與使用規範
+
+  /** 兩欄版面是否真的生效（選了雙欄、而且螢幕夠寬；斷點和 styles.css 一致） */
+  private isTwoColumn(): boolean {
+    return (
+      this.state.prefs.layout === 'wide' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia(WIDE_QUERY).matches
+    );
+  }
+
+  private setTheme(value: string): void {
+    const theme = THEMES.find((t) => t === value);
+    if (!theme || theme === this.state.prefs.theme) return;
+    this.updatePrefs({ theme });
+  }
+
+  private setLayout(value: string): void {
+    const layout = LAYOUTS.find((l) => l === value);
+    if (!layout || layout === this.state.prefs.layout) return;
+    this.updatePrefs({ layout });
+    // 欄寬變了：重新量圖表寬度、重畫圖表
+    this.measure();
+    this.invalidate();
+  }
+
+  private updatePrefs(change: Partial<{ theme: ThemeId; layout: LayoutId; termsVersion: number }>): void {
+    const s = this.state;
+    s.prefs = { ...s.prefs, ...change };
+    savePrefs(s.prefs);
+    applyPrefs(s.prefs);
+  }
+
+  private openTerms(): void {
+    const s = this.state;
+    if (s.termsOpen) return;
+    const active = document.activeElement;
+    this.termsReturnFocus = active instanceof HTMLElement && active !== document.body ? active : null;
+    s.termsOpen = true;
+    s.termsChecked = false;
+    this.invalidate();
+  }
+
+  /** 關閉使用規範；只有同意過之後才能關（第一次一定要勾選並按「同意」）。 */
+  private closeTerms(accept: boolean): void {
+    const s = this.state;
+    if (!s.termsOpen) return;
+    if (accept) {
+      if (!s.termsChecked) return;
+      this.updatePrefs({ termsVersion: TERMS_VERSION });
+    } else if (!termsAccepted(s.prefs)) {
+      return;
+    }
+    s.termsOpen = false;
+    s.termsChecked = false;
+    const back = this.termsReturnFocus;
+    this.termsReturnFocus = null;
+    this.invalidate();
+    this.afterRender.push(() => {
+      const target = back && back.isConnected ? back : document.getElementById('claim-text');
+      target?.focus({ preventScroll: true });
+    });
+  }
+
   // ============================================================== 事件
 
   private bind(): void {
@@ -420,11 +556,25 @@ class App {
   private onChange(e: Event): void {
     const t = e.target;
     const s = this.state;
-    const claim = s.claim;
-    if (!claim) return;
     if (!(t instanceof HTMLSelectElement || t instanceof HTMLInputElement)) return;
     const action = t.dataset['action'];
     const value = t.value;
+    // 這幾項和預言無關：還沒有 claim 也要能用
+    if (action === 'theme') {
+      this.setTheme(value);
+      return;
+    }
+    if (action === 'layout') {
+      this.setLayout(value);
+      return;
+    }
+    if (action === 'terms-check' && t instanceof HTMLInputElement) {
+      s.termsChecked = t.checked;
+      this.invalidate();
+      return;
+    }
+    const claim = s.claim;
+    if (!claim) return;
     switch (action) {
       case 'time-kind':
         if (value !== 'current') this.applyTime(chooseTimeKind(claim, value as Claim['time']['kind']), { kindChanged: true });
@@ -479,10 +629,36 @@ class App {
   }
 
   private onClick(e: MouseEvent): void {
+    // 點對話框外面的暗色背景：同意過的人可以這樣關掉
+    if (e.target instanceof HTMLElement && e.target.classList.contains('modal-backdrop')) {
+      this.closeTerms(false);
+      return;
+    }
     const target = e.target instanceof Element ? e.target.closest<HTMLElement | SVGElement>('[data-action]') : null;
     if (!target) return;
     const action = target.dataset['action'];
     switch (action) {
+      case 'clear':
+        this.clear();
+        break;
+      case 'gate-continue':
+        this.state.gate = null;
+        this.invalidate();
+        this.afterRender.push(() => {
+          const overview = document.getElementById('overview');
+          if (overview) scrollToElement(overview);
+          document.getElementById('headline')?.focus({ preventScroll: true });
+        });
+        break;
+      case 'terms-open':
+        this.openTerms();
+        break;
+      case 'terms-close':
+        this.closeTerms(false);
+        break;
+      case 'terms-accept':
+        this.closeTerms(true);
+        break;
       case 'example': {
         const text = INPUT.examples[Number(target.dataset['index'])];
         if (text === undefined) return;
@@ -517,6 +693,12 @@ class App {
 
   private onKeydown(e: KeyboardEvent): void {
     const t = e.target;
+    if (e.key === 'Escape' && this.state.termsOpen) {
+      // 第一次（還沒同意）不能用 Esc 跳過
+      e.preventDefault();
+      this.closeTerms(false);
+      return;
+    }
     if (t instanceof HTMLTextAreaElement && t.dataset['action'] === 'text') {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
@@ -597,14 +779,34 @@ class App {
     morphChildren(this.slots.input, inputCardHtml(s));
     const map = s.claim && s.data ? miniMapHtml(s.claim, s.data) : html``;
     morphChildren(this.slots.confirm, confirmCardHtml(s, map));
-    morphChildren(
-      this.slots.results,
-      s.computeError ? html`<div class="card error-box" role="alert">${s.computeError}</div>` : resultsHtml(s),
-    );
+    let results: SafeHtml;
+    if (s.computeError) results = html`<div class="card error-box" role="alert">${s.computeError}</div>`;
+    else if (s.gate && s.results) results = gateHtml(s.gate, s.source?.parse.flags ?? []);
+    else results = resultsHtml(s);
+    morphChildren(this.slots.results, results);
+    morphChildren(this.slots.why, whyHtml(s.data));
     morphChildren(this.slots.footer, footerHtml(s.data?.meta ?? null));
+    this.renderTerms();
     const callbacks = this.afterRender;
     this.afterRender = [];
     for (const cb of callbacks) cb();
+  }
+
+  /**
+   * 使用規範對話框：打開時頁面其他部分設成 inert（不能點、不能 Tab 進去、螢幕報讀器也跳過），
+   * 背景不捲動；剛打開時焦點移到對話框上。
+   */
+  private renderTerms(): void {
+    const s = this.state;
+    const wasOpen = this.slots.terms.firstElementChild !== null;
+    morphChildren(this.slots.terms, termsHtml(s.termsOpen, termsAccepted(s.prefs), s.termsChecked));
+    for (const el of Array.from(this.root.children)) {
+      if (el !== this.slots.terms) el.toggleAttribute('inert', s.termsOpen);
+    }
+    document.body.classList.toggle('modal-open', s.termsOpen);
+    if (s.termsOpen && !wasOpen) {
+      document.getElementById('terms-dialog')?.focus({ preventScroll: true });
+    }
   }
 
   private renderCard(id: CardId): void {

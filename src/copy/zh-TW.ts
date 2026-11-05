@@ -61,6 +61,9 @@ export const INPUT = {
     '年底前台北會有有感地震',
   ],
   privacy: '你輸入的文字只留在你的瀏覽器裡，不會送出。',
+  scope: '目前只支援台灣及近海（縣市、鄉鎮、分區）的地震預言；國外地區之後再加。',
+  clear: '清空',
+  clearLabel: '清空內容，重新輸入',
   empty: '先輸入一則預言，再按「算算看」。',
   loading: '正在載入地震資料…',
   waiting: '地震資料還在載入，好了會自動幫你算。',
@@ -365,6 +368,19 @@ export const OVERVIEW = {
   infoTitle: '資訊量',
   infoLine: (bits: string) => `這則預言的資訊量約 ${bits} bits，相當於連續猜中 ${bits} 次擲硬幣`,
   infoLineLow: (bits: string) => `這則預言的資訊量約 ${bits} bits，連猜中一次擲硬幣都不到`,
+  notForecast: '這是「隨便亂猜也會中」的歷史頻率，不是這段期間真的會發生地震的機率，也不是地震預報。',
+  everyN: (n: string) => `平均每猜 ${n} 次，就會中 1 次。`,
+  everyNAlmost: '幾乎每次都會中。',
+  compareTitle: '對照組：其他說法亂猜會中多少？',
+  compareHelp: '同樣用過去的資料、同樣的算法。這則預言排在哪裡，一看就知道。',
+  compareThis: '（這則預言）',
+  compareRefs: {
+    weekFelt: '下週台灣會發生有感地震',
+    monthM5: '一個月內台灣會有規模 5 以上',
+    weekHualienM6: '下週花蓮會有規模 6 以上',
+    dayTaipeiM6: '明天台北會有規模 6 以上',
+    yearM7: '一年內台灣會有規模 7 以上',
+  },
   copy: '複製結果',
   copied: '已複製結果和連結，可以貼給朋友了。',
   copyFailed: '無法自動複製；可以直接複製網址列的連結。',
@@ -705,4 +721,112 @@ export const FOOTER = {
   loading: '資料載入後會在這裡列出來源與授權。',
   linksTitle: '連結',
   links: { cwa: '中央氣象署地震測報中心', methods: '方法說明', source: '原始碼' },
+  termsLink: '使用規範',
+  resourcesTitle: '延伸閱讀與官方資料',
+  /** 每個網址都在 2026-11-05 確認過可以開啟 */
+  resources: [
+    { group: '中央氣象署地震百問', items: [
+      { text: '地震百問（全部題目）', url: 'https://scweb.cwa.gov.tw/zh-tw/guidance/faq/' },
+      { text: '政府是否能對地震做預報？', url: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/96' },
+      { text: '如何以地震規模區分地震之大小？（微小、小、中、大地震）', url: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/34' },
+      { text: '何謂震度？（震度分級表）', url: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/36' },
+      { text: '各種地震規模的計算值都是一樣的嗎？（ML、Mw、Ms、mb）', url: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/28' },
+      { text: '何謂局發、小區域、稍顯著地震及顯著地震？', url: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/17' },
+    ] },
+    { group: '防災準備', items: [
+      { text: '地震前之準備事項為何？', url: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/109' },
+      { text: '大地震發生時應注意哪些事項？', url: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/110' },
+    ] },
+    { group: '地震資料', items: [
+      { text: '中央氣象署 地震資料', url: 'https://scweb.cwa.gov.tw/zh-tw/earthquake/data/' },
+      { text: '中央氣象署 地震測站', url: 'https://scweb.cwa.gov.tw/zh-tw/stationnew/' },
+      { text: '中央氣象署 氣象資料開放平臺', url: 'https://opendata.cwa.gov.tw/' },
+      { text: '內政部 直轄市、縣市界線（政府資料開放平臺）', url: 'https://data.gov.tw/dataset/7442' },
+      { text: '內政部 鄉鎮市區界線（政府資料開放平臺）', url: 'https://data.gov.tw/dataset/7441' },
+      { text: 'taiwan-atlas（縣市、鄉鎮界線的 TopoJSON）', url: 'https://github.com/dkaoster/taiwan-atlas' },
+    ] },
+    { group: '授權', items: [
+      { text: '中央氣象署 政府網站資料開放宣告', url: 'https://www.cwa.gov.tw/V8/C/information.html' },
+      { text: '政府資料開放授權條款－第 1 版', url: 'https://data.gov.tw/license' },
+    ] },
+  ],
+} as const;
+
+// ================================================================ 第一次使用：使用規範
+
+export const TERMS = {
+  title: '使用規範',
+  intro: '開始之前，請花 30 秒看完這幾點。',
+  items: [
+    {
+      title: '這不是地震預報',
+      text: '本網站算的是「就算隨便亂猜，這種預言也會中」的歷史頻率，不是未來會不會發生地震的機率。中央氣象署指出，目前尚無法以科學方式準確預測地震發生的時間、位置及規模；地震資訊請以中央氣象署發布的為準。',
+    },
+    {
+      title: '不要拿來製造恐慌，或攻擊特定的人',
+      text: '結果只說明「這種說法本來就有多容易中」，不能證明任何人有或沒有預測能力，也不能當作防災決策的依據。分享時請不要斷章取義。',
+    },
+    {
+      title: '資料與方法都有限制',
+      text: '使用中央氣象署 1995–2025 年的地震目錄與有感地震報告，以及內政部的縣市、鄉鎮界線。解讀方式、假設與限制都寫在「方法說明」，數字可能和其他來源不同。',
+    },
+    {
+      title: '隱私',
+      text: '你輸入的文字只在你的瀏覽器裡計算，不會送出、也不會保存；分享連結只記錄我們的解讀，不含原文。',
+    },
+  ],
+  sourceLink: '中央氣象署地震百問：政府是否能對地震做預報？',
+  sourceUrl: 'https://scweb.cwa.gov.tw/zh-TW/Guidance/FAQdetail/96',
+  methodsLink: '方法說明',
+  checkbox: '我已閱讀並了解以上內容',
+  accept: '同意並開始使用',
+  close: '關閉',
+  memoryNote: '「同意」只會記在這台裝置的瀏覽器裡；清除瀏覽資料後會再問一次。',
+} as const;
+
+// ================================================================ 顯示設定
+
+export const PREFS = {
+  label: '顯示設定',
+  themeLabel: '主題',
+  themes: { auto: '跟隨系統', light: '白天', dark: '黑夜', desert: '沙漠黃', jungle: '叢林綠', tech: '科技藍' },
+  layoutLabel: '版面',
+  layouts: { single: '單欄', wide: '雙欄（寬螢幕）' },
+  layoutHelp: '雙欄：左邊輸入與確認、右邊看結果；螢幕太窄時自動改回單欄。',
+} as const;
+
+// ================================================================ 先確認再算
+
+export const GATE = {
+  foreignTitle: '這則預言說的不是台灣',
+  foreignText: (places: string) =>
+    `原文提到${places}，但本網站只有中央氣象署的台灣地震資料，算不出國外的命中率。`,
+  foreignHint: '想知道「同樣的說法放在台灣」有多容易中，可以改用台灣及近海試算。',
+  foreignContinue: '改用台灣及近海試算',
+  notQuakeTitle: '這看起來不像一則地震預言',
+  notQuakeText: '原文裡找不到和地震有關的字（例如地震、震度、規模、有感），可能是貼錯內容，或只是在測試。',
+  notQuakeHint: '如果真的是一則地震預言，可以先在上面的確認卡選好時間、地點和大小，再按下面的按鈕。',
+  conflictTitle: '這則預言的說法互相矛盾',
+  conflictText: (list: string) =>
+    `原文同時提到好幾種說法（${list}）。什麼都說的預言，等於什麼都沒說：不管發生什麼，都能找到一種說法算「中」。`,
+  conflictHint: '請在上面的確認卡選定一種；或照確認卡上目前的解讀計算。',
+  continue: '照目前的設定算算看',
+  clear: '清空，重新輸入',
+} as const;
+
+// ================================================================ 為什麼預言常常看起來很準
+
+export const WHY = {
+  title: '為什麼預言常常看起來很準？',
+  intro: '不需要任何超能力，只要做到下面幾點，「猜中」就會很常見。',
+  quakesTitle: '地震本來就常發生',
+  quakesText: (years: string, rate: string) =>
+    `過去 ${years} 年，台灣及近海規模 5 以上的地震平均每年約 ${rate} 次；有感地震更多。`,
+  quakesTextLoading: '台灣位在板塊交界，有感地震幾乎每週都有。',
+  items: [
+    { icon: '🌫️', title: '預言寫得很模糊', text: '不說多大、不說在哪、不說哪幾天，發生什麼都能算「中」。看「解讀光譜」。' },
+    { icon: '🎯', title: '只記得猜中的', text: '猜中的會被截圖、轉傳；猜錯的沒有人記得，也沒有人追蹤。' },
+    { icon: '🔁', title: '一直重複說', text: '同一句話每幾天發一次，總有一次會碰上。看「亂槍打鳥」。' },
+    { icon: '🪄', title: '事後重新解讀', text: '「我說的大地震就是指這個」：判定標準可以在事後放寬。看「灌水成分」。' },
+  ],
 } as const;

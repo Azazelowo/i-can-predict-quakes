@@ -38,12 +38,22 @@ export function footerHtml(meta: Meta | null): SafeHtml {
       <h2 class="footer-title" id="data-title">${FOOTER.dataTitle}</h2>
       ${dataSources(meta)}
     </section>
+    <nav aria-labelledby="resources-title">
+      <h2 class="footer-title" id="resources-title">${FOOTER.resourcesTitle}</h2>
+      ${FOOTER.resources.map(
+        (group) => html`<h3 class="footer-title footer-subtitle">${group.group}</h3>
+          <ul class="data-list resource-list">
+            ${group.items.map((item) => html`<li><a href="${item.url}" rel="noopener noreferrer">${item.text}</a></li>`)}
+          </ul>`,
+      )}
+    </nav>
     <nav aria-labelledby="links-title">
       <h2 class="footer-title" id="links-title">${FOOTER.linksTitle}</h2>
       <div class="footer-links">
         <a href="${CWA_URL}" rel="noopener noreferrer">${FOOTER.links.cwa}</a>
         <a href="${METHODS_URL}" rel="noopener noreferrer">${FOOTER.links.methods}</a>
         <a href="${REPO_URL}" rel="noopener noreferrer">${FOOTER.links.source}</a>
+        <button type="button" class="btn-link" data-action="terms-open">${FOOTER.termsLink}</button>
       </div>
     </nav>
   </div>`;

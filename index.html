@@ -15,6 +15,14 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="我也會地震預測" />
     <meta property="og:description" content="輸入一則地震預言，看看隨便亂猜有多容易中。" />
+    <script>
+      // 在畫面出來前先套上次選的主題與版面，重新整理時才不會閃一下預設配色（完整邏輯見 src/app/prefs.ts）
+      try {
+        var p = JSON.parse(localStorage.getItem('i-can-predict-quakes.prefs') || '{}');
+        if (/^(auto|light|dark|desert|jungle|tech)$/.test(p.theme)) document.documentElement.dataset.theme = p.theme;
+        if (/^(single|wide)$/.test(p.layout)) document.documentElement.dataset.layout = p.layout;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>
