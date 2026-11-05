@@ -22,7 +22,9 @@ import {
   OFFSHORE_WORDS,
   OUT_OF_SCOPE_PLACES,
   TAIWAN_ALIASES,
+  countyById,
 } from '../core/regions';
+import { TOWNS } from '../core/towns';
 import type { Flag, GroupId, RegionSpec, Span } from '../core/types';
 import { normalize } from './normalize';
 import { buildLexicon, scanLexicon, type LexiconEntry } from './scan';
@@ -33,7 +35,7 @@ export interface RegionResult {
   spans: Span[];
 }
 
-type PlaceKind = 'excluded' | 'group' | 'combo' | 'county' | 'ambiguous' | 'taiwan' | 'foreign';
+type PlaceKind = 'excluded' | 'group' | 'combo' | 'county' | 'ambiguous' | 'town' | 'taiwan' | 'foreign';
 
 interface PlaceWord extends LexiconEntry {
   kind: PlaceKind;
@@ -60,6 +62,11 @@ function placeWords(): PlaceWord[] {
   for (const [name, ids] of Object.entries(COUNTY_COMBOS)) add(name, 'combo', ids);
   for (const c of COUNTIES) for (const alias of c.aliases) add(alias, 'county', [c.id]);
   for (const [name, ids] of Object.entries(AMBIGUOUS_PLACES)) add(name, 'ambiguous', ids);
+  // 鄉鎮：全名與（安全的）簡稱，都對應到所在的縣市；和縣市別名同名時縣市優先（先加入者優先）
+  for (const t of TOWNS) {
+    add(t.name, 'town', [t.county]);
+    if (t.short !== null) add(t.short, 'town', [t.county]);
+  }
   for (const alias of TAIWAN_ALIASES) add(alias, 'taiwan', []);
   for (const name of OUT_OF_SCOPE_PLACES) add(name, 'foreign', []);
   return words;
@@ -81,6 +88,10 @@ export function findRegion(norm: string, orig: string): RegionResult {
   const taiwanSpans: Span[] = [];
   const foreign = new Map<string, string>(); // 正規化的詞 → 原文寫法（依出現順序）
   const ambiguous = new Map<string, string>();
+  /** 鄉鎮 → 所在縣市（「池上→臺東縣」），依出現順序去重 */
+  const towns = new Map<string, string>();
+  /** 被採用的台灣地名：對應的縣市組合 → 原文寫法。對應到不同縣市組合才算「多個地點」 */
+  const places = new Map<string, string>();
 
   for (const { start, end, entry } of scanLexicon(norm, PLACES)) {
     const span: Span = { slot: 'region', start, end };
@@ -99,6 +110,14 @@ export function findRegion(norm: string, orig: string): RegionResult {
         if (entry.kind === 'group' && entry.group !== null) pushUnique(groups, entry.group);
         else countyLevel = true;
         if (entry.kind === 'ambiguous' && !ambiguous.has(entry.word)) ambiguous.set(entry.word, orig.slice(start, end));
+        // 這兩種提醒的 detail 用正規化後的寫法：只差在全形／半形、台／臺的兩句話，結果要完全相同
+        if (entry.kind === 'town' && !towns.has(entry.word)) {
+          towns.set(entry.word, `${entry.word}→${countyById(entry.ids[0] ?? '')?.name ?? ''}`);
+        }
+        {
+          const key = [...entry.ids].sort().join(',');
+          if (!places.has(key)) places.set(key, entry.word);
+        }
     }
   }
 
@@ -114,12 +133,20 @@ export function findRegion(norm: string, orig: string): RegionResult {
     if (foreign.size > 0) flags.push({ code: 'region-out-of-scope', detail: foreignDetail });
     if (offshore.length > 0) flags.push({ code: 'region-offshore' });
     if (ambiguous.size > 0) flags.push({ code: 'region-ambiguous', detail: [...ambiguous.values()].join('、') });
+    if (towns.size > 0) flags.push({ code: 'region-town', detail: [...towns.values()].join('、') });
+    // 提到兩個以上的地點（例如「南部、西部」「卑南或池上」）：合在一起算，提醒使用者
+    if (places.size > 1) flags.push({ code: 'region-union', detail: [...places.values()].join('、') });
     const modifierSpans: Span[] = offshore.map((h) => ({ slot: 'modifier', start: h.start, end: h.end }));
     return { region, flags, spans: [...localSpans, ...modifierSpans] };
   }
 
-  // 沒有台灣的縣市：一律用台灣及近海。只提到國外時不加 region-unspecified（規格 2.3）
-  if (foreign.size > 0) flags.push({ code: 'region-out-of-scope', detail: foreignDetail });
-  else if (taiwanSpans.length === 0) flags.push({ code: 'region-unspecified' });
+  // 沒有台灣的縣市：一律用台灣及近海。只提到國外時不加 region-unspecified（規格 2.3），
+  // 但加 region-foreign-only：這則預言說的根本不是台灣，網頁要先問過使用者再算
+  if (foreign.size > 0) {
+    flags.push({ code: 'region-out-of-scope', detail: foreignDetail });
+    if (taiwanSpans.length === 0) flags.push({ code: 'region-foreign-only' });
+  } else if (taiwanSpans.length === 0) {
+    flags.push({ code: 'region-unspecified' });
+  }
   return { region: { kind: 'taiwan' }, flags, spans: taiwanSpans };
 }

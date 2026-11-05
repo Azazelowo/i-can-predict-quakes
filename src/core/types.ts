@@ -128,16 +128,24 @@ export type FlagCode =
   | 'time-vague' // 「近期」等，暫用 30 天
   | 'time-past' // 指定的日期已經過了（相對於發布日）
   | 'time-clamped' // 天數超過上限，已截斷
+  | 'time-multiple' // 提到多個不同的時間（detail = 原文說法，以「、」連接），取最先出現的
   // 地點
   | 'region-unspecified' // 沒說地點，預設台灣及近海
   | 'region-out-of-scope' // 提到國外（detail = 地名）；目前只算台灣
+  | 'region-foreign-only' // 只提到國外、沒有任何台灣地名：不能直接算（網頁會先請使用者確認）
   | 'region-offshore' // 提到外海／海域，外推距離改用 60 公里
   | 'region-ambiguous' // 「新竹」「嘉義」同時代表縣與市，兩者都算
+  | 'region-town' // 提到鄉鎮，改用它所在的縣市（detail = 「池上→臺東縣」，以「、」連接）
+  | 'region-union' // 提到多個地點，全部合在一起算（detail = 原文地名，以「、」連接）
   // 大小
   | 'size-unspecified' // 沒說多大（detail = 原文用詞，例如「大地震」）
   | 'size-level-ambiguous' // 「6 級地震」：不確定是規模還是震度，先當規模
   | 'size-below-min' // 規模門檻低於 4.0，以 4.0 計算（實際命中率只會更高）
   | 'size-intensity-region-ignored' // 震度只有全台最大值，地區設定不適用
+  | 'size-multiple' // 提到多個不同的大小（detail = 原文說法，以「、」連接），取最先出現的數值
+  | 'size-magnitude-type' // 規模種類不是 ML（detail = Mw、Ms、Mj、mb…），數值直接當 ML 門檻
+  | 'size-official-term' // 用了中央氣象署的分級名稱（detail = 原文用詞，例如「中地震」「弱震」）
+  | 'size-unsupported-term' // 提到本網站不計算的量（detail = PGA、PGV、加速度…）
   // 其他
   | 'repeat-mentioned'; // 原文提到重複預言（「又說」「每週都說」），請看亂槍打鳥模式
 

@@ -13,6 +13,7 @@ import {
   OFFSHORE_BUFFER_KM,
   TAIWAN_BOX,
 } from '../core/constants';
+import { MAGNITUDE_TYPES, officialTerm } from '../core/terms';
 import type { Flag, LevelId } from '../core/types';
 
 // ================================================================ 單位
@@ -224,16 +225,41 @@ export function flagText(flag: Flag, days: number): string {
       return detail
         ? `「${detail}」可能是縣也可能是市，兩個都算。`
         : '這個地名可能是縣也可能是市，兩個都算。';
-    case 'size-unspecified':
-      return detail
+    case 'size-unspecified': {
+      const official = officialTerm(detail);
+      const base = detail
         ? `沒說多大（「${detail}」）。「大」沒有標準，我們把常見的解讀都算出來了。`
         : '沒說多大。「大」沒有標準，我們把常見的解讀都算出來了。';
+      return official ? `${base}參考：${official.meaning}。` : base;
+    }
     case 'size-level-ambiguous':
       return '「幾級」可能是規模也可能是震度，我們先當成規模；可以在下面改成震度。';
     case 'size-below-min':
       return `規模 ${MIN_ML} 以下的小地震太多、早期紀錄也不完整，我們用 ${MIN_ML.toFixed(1)} 計算（實際命中率只會更高）。`;
     case 'size-intensity-region-ignored':
       return '震度資料只有「全台任一地點的最大震度」，所以不套用地點。';
+    case 'time-multiple':
+      return `提到好幾個時間（${detail}），我們先用最先出現的那個；可以在上面改。`;
+    case 'region-foreign-only':
+      return '這則預言只提到國外，沒有台灣的地名。本網站目前只算台灣及近海。';
+    case 'region-town':
+      return `提到鄉鎮（${detail}），我們用它所在的縣市計算（含縣界外的範圍），範圍會比鄉鎮大一些。`;
+    case 'region-union':
+      return `提到好幾個地點（${detail}），我們全部合在一起算：任何一個地方發生都算中，所以命中率會比只說一個地方高。`;
+    case 'size-multiple':
+      return `提到好幾個不同的大小（${detail}），我們先用最先出現的那個；可以在下面改。`;
+    case 'size-magnitude-type': {
+      const name = MAGNITUDE_TYPES[detail.toLowerCase()] ?? detail;
+      return `你寫的是${name}。本網站用中央氣象署的近震規模 ML，兩種規模的數值不同（例如 1999 年集集地震 ML 7.3、Mw 7.7），這裡直接把數字當成 ML 計算。`;
+    }
+    case 'size-official-term': {
+      const official = officialTerm(detail);
+      return official
+        ? `「${detail}」是${official.meaning}，我們照這個定義計算；可以在下面改。`
+        : `「${detail}」是中央氣象署的分級名稱，我們照官方定義計算。`;
+    }
+    case 'size-unsupported-term':
+      return `「${detail}」這類量（地表加速度等）本網站沒有計算，我們只算規模與震度。`;
     case 'repeat-mentioned':
       return '他不只說過一次？看看下面的「亂槍打鳥」。';
   }

@@ -23,7 +23,7 @@
  * - 數字可帶小數（「1.5 個月」= 45 天，無條件捨去）；「兩三天」取 3 天（見 numbers.ts）。
  */
 import { MAX_WINDOW_DAYS, VAGUE_WINDOW_DAYS } from '../core/constants';
-import { dayToIso, firstDayOfMonth, isoToDay, monthDayOfDay, yearOfDay } from '../core/time';
+import { dayToIso, firstDayOfMonth, isoToDay, monthDayOfDay, weekdayMon0, yearOfDay } from '../core/time';
 import type { Flag, Span, TimeKind, TimeWindow } from '../core/types';
 import { CN_NUM_CHARS, CN_PLAIN_DIGITS, NUM_LEFT, NUM_SRC, digitValue, parseNumber } from './numbers';
 import { execAt, forEachMatch, pickEarliest } from './scan';
@@ -139,8 +139,16 @@ const WORD_RULES: readonly WordRule[] = [
   { re: /後天/g, build: relative('dayAfterTomorrow') },
   // 大後天：規格指定 kind = date
   { re: /大後天/g, build: (ctx) => absolute(ctx, 'date', ctx.d0 + 3, ctx.d0 + 3) },
-  { re: /(?:這個?|本)(?:週|禮拜|星期)/g, build: relative('thisWeek') },
-  { re: /下個?(?:週|禮拜|星期)/g, build: relative('nextWeek') },
+  { re: /(?:這(?:一個|一|個)?|本)(?:週|禮拜|星期)/g, build: relative('thisWeek') },
+  // 下下週：下下週一到下下週日（沒有對應的 TimeKind，用日期範圍）；比「下週」早一個字開始，所以會優先
+  {
+    re: /下下(?:一?個)?(?:週|禮拜|星期)/g,
+    build: (ctx) => {
+      const w0 = weekdayMon0(ctx.d0);
+      return absolute(ctx, 'dateRange', ctx.d0 + 14 - w0, ctx.d0 + 20 - w0);
+    },
+  },
+  { re: /下(?:一個|一|個)?(?:週|禮拜|星期)/g, build: relative('nextWeek') },
   // 「這個週末」要整個比對到：否則 thisWeek 的「這個週」會先佔住起點，把規格的「週末」切開
   { re: /(?<!上)(?:這個?|本)?週末/g, build: relative('weekend') },
   {
@@ -156,7 +164,7 @@ const WORD_RULES: readonly WordRule[] = [
     build: relative('thisYear'),
   },
   {
-    re: /這\s*(?:幾|一兩|兩三|兩)\s*天|(?:未來|接下來)\s*(?:的\s*)?幾\s*天|最近\s*幾\s*天|近日/g,
+    re: /這\s*(?:幾|一兩|兩三|兩)\s*天|(?:未來|接下來)\s*(?:的\s*)?幾\s*天|最近\s*幾\s*天|近日|幾\s*天\s*(?:之後|以後|後)|過\s*幾\s*天/g,
     build: vagueRule('withinDays', SHORT_VAGUE_DAYS),
   },
   {
@@ -209,6 +217,28 @@ function firstCount(ctx: Ctx, re: RegExp): Found | null {
     const days = Math.floor(n.value * unitDays(unit) + 1e-9);
     if (!(days >= 1)) return false;
     found = { start: m.index, end: m.index + m[0].length, ...byDays(ctx, 'withinDays', days) };
+    return true;
+  });
+  return found;
+}
+
+/** 「169 天後」「3 週後」「2 個月以後」：那一天（發布日 + 天數）。後面接「內」時不算（「3 天後之內」不是一個日期） */
+const AFTER_RE = new RegExp(
+  `${NUM_LEFT}(${NUM_SRC})\\s*${UNIT}\\s*(?:之後|以後|後)(?!\\s*${WITHIN})(?!天)`,
+  'g',
+);
+
+function firstAfter(ctx: Ctx): Found | null {
+  let found: Found | null = null;
+  forEachMatch(AFTER_RE, ctx.norm, (m) => {
+    const n = parseNumber(m[1] ?? '');
+    const unit = m[2];
+    if (n === null || unit === undefined) return false;
+    if (unit === '年' && n.value >= 1000) return false; // 「2027 年後」是年份，不是天數
+    const days = Math.floor(n.value * unitDays(unit) + 1e-9);
+    if (!(days >= 1) || days > MAX_WINDOW_DAYS) return false;
+    const day = ctx.d0 + days;
+    found = { start: m.index, end: m.index + m[0].length, ...absolute(ctx, 'date', day, day) };
     return true;
   });
   return found;
@@ -552,13 +582,15 @@ function firstExplicitYear(ctx: Ctx): Found | null {
 export function findTime(norm: string, orig: string, issuedAt: string): TimeResult {
   const d0 = isoToDay(issuedAt);
   const ctx: Ctx = { norm, orig, issuedAt, d0, y0: yearOfDay(d0), m0: monthDayOfDay(d0).month };
-  const best = pickEarliest<Found>([
+  const candidates = [
     ...WORD_RULES.map((rule) => firstWord(ctx, rule)),
     ...COUNT_RULES.map((re) => firstCount(ctx, re)),
+    firstAfter(ctx),
     firstHalfYear(ctx),
     firstDate(ctx),
     firstCalendarYear(ctx),
-  ]);
+  ];
+  const best = pickEarliest<Found>(candidates);
   if (best === null) {
     return {
       time: computeWindow('unspecified', issuedAt, { days: VAGUE_WINDOW_DAYS }),
@@ -566,5 +598,30 @@ export function findTime(norm: string, orig: string, issuedAt: string): TimeResu
       spans: [],
     };
   }
-  return { time: best.time, flags: best.flags, spans: [{ slot: 'time', start: best.start, end: best.end }] };
+  const multiple = multipleTimes(ctx, candidates);
+  return {
+    time: best.time,
+    flags: multiple === null ? best.flags : [...best.flags, multiple],
+    spans: [{ slot: 'time', start: best.start, end: best.end }],
+  };
+}
+
+/**
+ * 原文有沒有提到多個不同的時間窗：由左到右、起點相同取較長者，和已採用的說法重疊的不算
+ * （「下下週」裡的「下週」、「今年 12 月」裡的「今年」是同一個說法的一部分）。
+ */
+function multipleTimes(ctx: Ctx, candidates: readonly (Found | null)[]): Flag | null {
+  const found = candidates
+    .filter((c): c is Found => c !== null)
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+  const accepted: Found[] = [];
+  for (const c of found) {
+    if (accepted.every((a) => c.end <= a.start || c.start >= a.end)) accepted.push(c);
+  }
+  const distinct = new Map<string, string>();
+  for (const c of accepted) {
+    const key = `${c.time.start}|${c.time.end}`;
+    if (!distinct.has(key)) distinct.set(key, ctx.norm.slice(c.start, c.end));
+  }
+  return distinct.size > 1 ? { code: 'time-multiple', detail: [...distinct.values()].join('、') } : null;
 }
