@@ -4,6 +4,7 @@
 
 為什麼要排除一些名稱：
 - 全名重複（例如好幾個市都有「東區」「中正區」）：分不出是哪個縣市，不收。
+- 全名本身是常用詞的一部分（「中區」：地震集中區域）：不收。
 - 簡稱（去掉鄉、鎮、市、區）只在「全台唯一」而且「不是常用詞」時才收：
   「成功」「和平」「清水」「三星」都是日常用語，「關西」「松山」「三峽」也是國外地名，
   收進來會把「世界和平」讀成臺中市和平區。寧可漏掉，也不要誤判（使用者可以在確認卡上自己選縣市）。
@@ -33,8 +34,12 @@ STOP_SHORT = set(
     橫山 長治 大社 內湖 南港 新豐 新港 八德 大園 新屋 楊梅 龍潭 大溪 湖口 寶山 造橋 神岡
     大雅 新社 大肚 秀水 田尾 溪口 大林 太保 新化 仁德 永康 安南 安平 鼓山 小港 岡山 燕巢
     杉林 內門 茂林 高樹 金沙 金湖 金山 新店 五股 深坑 三重 虎尾 鹽水 文山 中埔 大埔 西港
+    中西 莒光
     """.split()
 )
+
+# 全名就是常用詞的一部分：連全名也不收（「地震集中區域」不是臺中市中區）
+STOP_FULL = {"中區"}
 
 # 地震新聞常出現、而且不會和常用詞撞名的簡稱：即使在上面的清單裡也要收
 KEEP_SHORT = set(
@@ -61,8 +66,8 @@ def main() -> None:
     rows = []
     for p in sorted(towns, key=lambda p: p["TOWNCODE"]):
         name = p["TOWNNAME"].replace("台", "臺")
-        if full_count[name] > 1:
-            continue  # 全名重複，分不出縣市
+        if full_count[name] > 1 or name in STOP_FULL:
+            continue  # 全名重複（分不出縣市），或全名本身是常用詞
         short = None
         if name[-1] in SUFFIXES and len(name) >= 3:
             s = name[:-1]
@@ -91,7 +96,7 @@ def main() -> None:
     lines.append("];")
     OUT.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     with_short = sum(1 for _, s, _ in rows if s)
-    print(f"towns: {len(rows)} (dropped {len(towns) - len(rows)} duplicate full names), with short name: {with_short}")
+    print(f"towns: {len(rows)} (dropped {len(towns) - len(rows)}: duplicate or common-word full names), with short name: {with_short}")
 
 
 if __name__ == "__main__":

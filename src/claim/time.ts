@@ -114,7 +114,8 @@ function inferDay(ctx: Ctx, month: number, date: number): number | null {
 
 interface WordRule {
   re: RegExp;
-  build: (ctx: Ctx, start: number, end: number) => Built;
+  /** 回傳 null：這個比對不算（例如「下週一定」的「下週一」） */
+  build: (ctx: Ctx, start: number, end: number, m: RegExpExecArray) => Built | null;
 }
 
 function relative(kind: TimeKind): WordRule['build'] {
@@ -132,13 +133,68 @@ function vagueRule(kind: 'withinDays' | 'vague', days: number): WordRule['build'
 const NUMERAL = `\\d${CN_NUM_CHARS}`;
 const BEFORE = '(?:之前|以前|前)';
 
+/** 「半個月內」「十天半個月」：15 天 */
+const HALF_MONTH_DAYS = 15;
+/** 「幾個月內」「數月內」：90 天（模糊） */
+const FEW_MONTHS_DAYS = 90;
+
+/** 星期幾：一 = 0 … 六 = 5，日／天 = 6（和 weekdayMon0 一致） */
+function weekdayIndex(ch: string): number {
+  const k = '一二三四五六'.indexOf(ch);
+  return k >= 0 ? k : 6;
+}
+
+/**
+ * 「星期五」「週五」「下週三」「這個禮拜天」「週一到週五」。
+ * 沒寫這／下：最近的那一天（今天就是星期五時算今天）；這週、本週：這週的那一天（已過加 time-past）；
+ * 下週、下下週：那一週的那一天。「上週三」是過去，不算。
+ * 「下週一定會…」「這週一直…」的「一」是「一定」「一直」；「這週天氣」的「天」是「天氣」：不算星期幾。
+ */
+// 空白一律有上限（\s{0,2}）：連續的 \s* 在一長串空白上會反覆回溯，6000 字的輸入要跑幾十秒
+const WEEKDAY_RE =
+  /(?<!上\s{0,2}(?:一?個\s{0,2})?)(下下|下|這|本)?\s{0,2}(?:一?個\s{0,2})?(?:週|禮拜|星期)([一二三四五六日天])(?:\s{0,2}(?:到|至|~|-|–|—|〜)\s{0,2}(?:週|禮拜|星期)?([一二三四五六日天]))?/g;
+const NOT_WEEKDAY_AFTER: Readonly<Record<string, RegExp>> = {
+  一: /^[定直起樣些點般切]/,
+  日: /^[氣子]/,
+  天: /^[氣子]/,
+};
+
+function weekdayBuild(ctx: Ctx, _start: number, end: number, m: RegExpExecArray): Built | null {
+  const last = m[3] ?? m[2] ?? '';
+  if (NOT_WEEKDAY_AFTER[last]?.test(ctx.norm.slice(end)) === true) return null;
+  const a = weekdayIndex(m[2] ?? '');
+  const w0 = weekdayMon0(ctx.d0);
+  const monday = ctx.d0 - w0;
+  let first: number;
+  if (m[1] === '下下') first = monday + 14 + a;
+  else if (m[1] === '下') first = monday + 7 + a;
+  else if (m[1] === '這' || m[1] === '本') first = monday + a;
+  else first = ctx.d0 + ((a - w0 + 7) % 7);
+  if (m[3] === undefined) return absolute(ctx, 'date', first, first);
+  const b = weekdayIndex(m[3]);
+  return absolute(ctx, 'dateRange', first, first + ((b - a + 7) % 7));
+}
+
+/** 下下個月：那個月 1 日到最後一天 */
+function monthAfterNext(ctx: Ctx): Built {
+  return absolute(ctx, 'month', firstDayOfMonth(ctx.y0, ctx.m0 + 2), lastDayOfMonth(ctx.y0, ctx.m0 + 2));
+}
+
+/** 「過、超過、經過…」：「過 N 天」只在前面不是這些字時才是「N 天後」 */
+const NOT_PASS_BEFORE = '超經度透通錯難不';
+
 // 「周」在 normalize() 已換成「週」，「台」已換成「臺」，所以這裡只寫「週」。
 const WORD_RULES: readonly WordRule[] = [
   { re: /今天|今日|今晚|今夜/g, build: relative('today') },
   { re: /明天|明日|明晚/g, build: relative('tomorrow') },
-  { re: /後天/g, build: relative('dayAfterTomorrow') },
+  // 「地震過後天氣變冷」「之後天天」「先天後天」的「後天」不是日子
+  { re: /(?<![過之以然最先])後天(?![氣性])/g, build: relative('dayAfterTomorrow') },
   // 大後天：規格指定 kind = date
   { re: /大後天/g, build: (ctx) => absolute(ctx, 'date', ctx.d0 + 3, ctx.d0 + 3) },
+  // 今明兩天：今天和明天；明後天：明天和後天
+  { re: /今明(?:兩)?天/g, build: (ctx) => byDays(ctx, 'withinDays', 2) },
+  { re: /明後(?:兩)?天/g, build: (ctx) => absolute(ctx, 'dateRange', ctx.d0 + 1, ctx.d0 + 2) },
+  { re: WEEKDAY_RE, build: weekdayBuild },
   { re: /(?:這(?:一個|一|個)?|本)(?:週|禮拜|星期)/g, build: relative('thisWeek') },
   // 下下週：下下週一到下下週日（沒有對應的 TimeKind，用日期範圍）；比「下週」早一個字開始，所以會優先
   {
@@ -155,6 +211,8 @@ const WORD_RULES: readonly WordRule[] = [
     re: new RegExp(`這個月|本月|這月|(?<![${NUMERAL}個上下])月底${BEFORE}?`, 'g'),
     build: relative('thisMonth'),
   },
+  // 下下個月：比「下個月」早一個字開始，所以會優先
+  { re: /下下個?月/g, build: monthAfterNext },
   { re: /下個?月/g, build: relative('nextMonth') },
   {
     re: new RegExp(
@@ -164,22 +222,38 @@ const WORD_RULES: readonly WordRule[] = [
     build: relative('thisYear'),
   },
   {
-    re: /這\s*(?:幾|一兩|兩三|兩)\s*天|(?:未來|接下來)\s*(?:的\s*)?幾\s*天|最近\s*幾\s*天|近日|幾\s*天\s*(?:之後|以後|後)|過\s*幾\s*天/g,
+    // 這幾天、這兩天、未來幾天、最近幾天、近日、幾天內、數日內、幾天後、過兩天、過幾天：7 天（模糊）
+    re: new RegExp(
+      `這\\s*(?:幾|一兩|兩三|兩)\\s*天|(?:未來|接下來)\\s*(?:的\\s*)?幾\\s*天|最近\\s*幾\\s*天|近日|` +
+        `(?:幾|數)\\s*[天日]\\s*(?:之內|以內|內|之後|以後|後)|(?<![${NOT_PASS_BEFORE}])過\\s*(?:幾|一兩|兩三|兩)\\s*天`,
+      'g',
+    ),
     build: vagueRule('withinDays', SHORT_VAGUE_DAYS),
   },
+  // 幾週內、數週內、幾個禮拜後：30 天（模糊）
+  { re: /(?:幾|數)\s*個?\s*(?:週|禮拜|星期)\s*(?:之內|以內|內|之後|以後|後)/g, build: vagueRule('withinDays', VAGUE_WINDOW_DAYS) },
+  // 幾個月內、數月內：90 天（模糊）
+  { re: /(?:幾|數)\s*個\s*月\s*(?:之內|以內|內)|數\s*月\s*(?:之內|以內|內)/g, build: vagueRule('withinDays', FEW_MONTHS_DAYS) },
+  // 十天半個月（內）：15 天（模糊）
+  { re: /十天半個?月(?:\s*(?:之內|以內|內))?/g, build: vagueRule('withinDays', HALF_MONTH_DAYS) },
   {
-    re: /近期|最近|不久(?:之後|後)?(?!\s*(?:之前|以前|前))|即將|很快|隨時/g,
+    // 「離台北最近的斷層」的「最近」是距離，不是時間
+    re: /近期|最近(?!的)|不久(?:之後|後)?(?!\s*(?:之前|以前|前))|即將|很快|隨時/g,
     build: vagueRule('vague', VAGUE_WINDOW_DAYS),
   },
 ];
 
-function firstWord(ctx: Ctx, rule: WordRule): Found | null {
+/** 一條規則在原文中的所有比對（多個時間說法要全部找出來，才知道預言有沒有同時說好幾個時間） */
+function allWord(ctx: Ctx, rule: WordRule): Found[] {
+  const out: Found[] = [];
   rule.re.lastIndex = 0;
-  const m = rule.re.exec(ctx.norm);
-  if (m === null) return null;
-  const start = m.index;
-  const end = start + m[0].length;
-  return { start, end, ...rule.build(ctx, start, end) };
+  for (let m = rule.re.exec(ctx.norm); m !== null; m = rule.re.exec(ctx.norm)) {
+    const start = m.index;
+    const end = start + m[0].length;
+    const built = rule.build(ctx, start, end, m);
+    if (built !== null) out.push({ start, end, ...built });
+  }
+  return out;
 }
 
 // ================================================================ N 天內
@@ -194,10 +268,13 @@ const COUNT_RULES: readonly RegExp[] = [
   new RegExp(`(?:未來|接下來)\\s*(?:的\\s*)?(${NUM_SRC})\\s*${UNIT}(?:\\s*${WITHIN})?`, 'g'),
 ];
 
-const HALF_YEAR_RE = new RegExp(
-  `(?:未來|接下來)\\s*(?:的\\s*)?半\\s*年(?:\\s*${WITHIN})?|(?<![${NUMERAL}])半\\s*年\\s*${WITHIN}`,
+/** 半年內、未來半年（182 天）；半個月內、未來半個月（15 天）。m[1] 是「年」或「月」 */
+const HALF_RE = new RegExp(
+  `(?:未來|接下來)\\s*(?:的\\s*)?半\\s*(年|個\\s*月)(?:\\s*${WITHIN})?|(?<![${NUMERAL}])半\\s*(年|個\\s*月)\\s*${WITHIN}`,
   'g',
 );
+/** 半年後、半個月後：那一天 */
+const HALF_AFTER_RE = new RegExp(`(?<![${NUMERAL}])半\\s*(年|個\\s*月)\\s*(?:之後|以後|後)(?!\\s*${WITHIN})(?!天)`, 'g');
 
 function unitDays(unit: string): number {
   if (unit === '天' || unit === '日') return 1;
@@ -205,21 +282,58 @@ function unitDays(unit: string): number {
   return unit.endsWith('月') ? 30 : 7;
 }
 
-function firstCount(ctx: Ctx, re: RegExp): Found | null {
-  let found: Found | null = null;
+/** 「N 天」換成天數；不合理（0 天、「2026 年」這種年份）時回傳 null */
+function countDays(numText: string | undefined, unit: string | undefined): number | null {
+  const n = parseNumber(numText ?? '');
+  if (n === null || unit === undefined) return null;
+  // 「2026 年內」「2027 年後」是曆年，不是 2026 年份的天數（由 firstCalendarYear 處理）
+  if (unit === '年' && n.value >= 1000) return null;
+  // 1e-9：避免 2.3 × 30 = 68.99999… 被捨成 68
+  const days = Math.floor(n.value * unitDays(unit) + 1e-9);
+  return days >= 1 ? days : null;
+}
+
+function allCount(ctx: Ctx, re: RegExp): Found[] {
+  const out: Found[] = [];
   forEachMatch(re, ctx.norm, (m) => {
-    const n = parseNumber(m[1] ?? '');
-    const unit = m[2];
-    if (n === null || unit === undefined) return false;
-    // 「2026 年內」是曆年，不是 2026 年份的天數（由 firstCalendarYear 處理）
-    if (unit === '年' && n.value >= 1000) return false;
-    // 1e-9：避免 2.3 × 30 = 68.99999… 被捨成 68
-    const days = Math.floor(n.value * unitDays(unit) + 1e-9);
-    if (!(days >= 1)) return false;
-    found = { start: m.index, end: m.index + m[0].length, ...byDays(ctx, 'withinDays', days) };
-    return true;
+    const days = countDays(m[1], m[2]);
+    if (days !== null) out.push({ start: m.index, end: m.index + m[0].length, ...byDays(ctx, 'withinDays', days) });
+    return false;
   });
-  return found;
+  return out;
+}
+
+/** 「72 小時內」「未來 48 小時」：天數 = 小時 ÷ 24 無條件進位（72 小時 = 3 天，和「3 天內」一樣含今天） */
+const HOURS_RULES: readonly RegExp[] = [
+  new RegExp(`${NUM_LEFT}(${NUM_SRC})\\s*(?:個\\s*)?(?:小時|鐘頭)\\s*${WITHIN}`, 'g'),
+  new RegExp(`(?:未來|接下來)\\s*(?:的\\s*)?(${NUM_SRC})\\s*(?:個\\s*)?(?:小時|鐘頭)(?:\\s*${WITHIN})?`, 'g'),
+];
+/** 「48 小時後」：那一天（發布日 + 小時 ÷ 24 四捨五入；6 小時後還是今天） */
+const HOURS_AFTER_RE = new RegExp(
+  `${NUM_LEFT}(${NUM_SRC})\\s*(?:個\\s*)?(?:小時|鐘頭)\\s*(?:之後|以後|後)(?!\\s*${WITHIN})`,
+  'g',
+);
+
+function allHours(ctx: Ctx): Found[] {
+  const out: Found[] = [];
+  for (const re of HOURS_RULES) {
+    forEachMatch(re, ctx.norm, (m) => {
+      const n = parseNumber(m[1] ?? '');
+      if (n !== null && n.value > 0) {
+        out.push({ start: m.index, end: m.index + m[0].length, ...byDays(ctx, 'withinDays', Math.ceil(n.value / 24)) });
+      }
+      return false;
+    });
+  }
+  forEachMatch(HOURS_AFTER_RE, ctx.norm, (m) => {
+    const n = parseNumber(m[1] ?? '');
+    if (n !== null && n.value > 0) {
+      const day = ctx.d0 + Math.round(n.value / 24);
+      out.push({ start: m.index, end: m.index + m[0].length, ...absolute(ctx, 'date', day, day) });
+    }
+    return false;
+  });
+  return out;
 }
 
 /** 「169 天後」「3 週後」「2 個月以後」：那一天（發布日 + 天數）。後面接「內」時不算（「3 天後之內」不是一個日期） */
@@ -227,28 +341,41 @@ const AFTER_RE = new RegExp(
   `${NUM_LEFT}(${NUM_SRC})\\s*${UNIT}\\s*(?:之後|以後|後)(?!\\s*${WITHIN})(?!天)`,
   'g',
 );
+/** 「過三天」「再過一週」：同「三天後」。「過兩天」「過幾天」是口語的「這幾天」，由模糊規則處理；「超過 3 天」不算 */
+const PASS_RE = new RegExp(
+  `(?<![${NOT_PASS_BEFORE}])過\\s*(?!(?:一兩|兩三|兩|幾)\\s*[天日])(${NUM_SRC})\\s*${UNIT}(?!\\s*${WITHIN})`,
+  'g',
+);
 
-function firstAfter(ctx: Ctx): Found | null {
-  let found: Found | null = null;
-  forEachMatch(AFTER_RE, ctx.norm, (m) => {
-    const n = parseNumber(m[1] ?? '');
-    const unit = m[2];
-    if (n === null || unit === undefined) return false;
-    if (unit === '年' && n.value >= 1000) return false; // 「2027 年後」是年份，不是天數
-    const days = Math.floor(n.value * unitDays(unit) + 1e-9);
-    if (!(days >= 1) || days > MAX_WINDOW_DAYS) return false;
-    const day = ctx.d0 + days;
-    found = { start: m.index, end: m.index + m[0].length, ...absolute(ctx, 'date', day, day) };
-    return true;
+function allAfter(ctx: Ctx): Found[] {
+  const out: Found[] = [];
+  const visit = (m: RegExpExecArray): boolean => {
+    const days = countDays(m[1], m[2]);
+    if (days !== null && days <= MAX_WINDOW_DAYS) {
+      const day = ctx.d0 + days;
+      out.push({ start: m.index, end: m.index + m[0].length, ...absolute(ctx, 'date', day, day) });
+    }
+    return false;
+  };
+  forEachMatch(AFTER_RE, ctx.norm, visit);
+  forEachMatch(PASS_RE, ctx.norm, visit);
+  forEachMatch(HALF_AFTER_RE, ctx.norm, (m) => {
+    const day = ctx.d0 + ((m[1] ?? '') === '年' ? HALF_YEAR_DAYS : HALF_MONTH_DAYS);
+    out.push({ start: m.index, end: m.index + m[0].length, ...absolute(ctx, 'date', day, day) });
+    return false;
   });
-  return found;
+  return out;
 }
 
-function firstHalfYear(ctx: Ctx): Found | null {
-  HALF_YEAR_RE.lastIndex = 0;
-  const m = HALF_YEAR_RE.exec(ctx.norm);
-  if (m === null) return null;
-  return { start: m.index, end: m.index + m[0].length, ...byDays(ctx, 'withinDays', HALF_YEAR_DAYS) };
+function allHalf(ctx: Ctx): Found[] {
+  const out: Found[] = [];
+  forEachMatch(HALF_RE, ctx.norm, (m) => {
+    const unit = m[1] ?? m[2] ?? '';
+    const days = unit === '年' ? HALF_YEAR_DAYS : HALF_MONTH_DAYS;
+    out.push({ start: m.index, end: m.index + m[0].length, ...byDays(ctx, 'withinDays', days) });
+    return false;
+  });
+  return out;
 }
 
 // ================================================================ 日期
@@ -470,15 +597,19 @@ function dateCandidate(ctx: Ctx, tok: DateToken): Found | null {
   return { start: tok.start, end: tok.end, ...absolute(ctx, 'date', day, day) };
 }
 
-function firstDate(ctx: Ctx): Found | null {
+/** 原文中所有的日期（「11/15 或 12/20」兩個都要找到）；比對到的字不再重複使用 */
+function allDates(ctx: Ctx): Found[] {
+  const out: Found[] = [];
   for (let i = 0; i < ctx.norm.length; i++) {
     if (!startsToken(ctx.norm, i)) continue;
     const tok = dateTokenAt(ctx.norm, i);
     if (tok === null) continue;
     const found = dateCandidate(ctx, tok);
-    if (found !== null) return found;
+    if (found === null) continue;
+    out.push(found);
+    i = found.end - 1;
   }
-  return null;
+  return out;
 }
 
 /** 年份之後的「底」「底前」（YEAR_RE 已吃掉「年」與後面的空白） */
@@ -578,19 +709,29 @@ function firstExplicitYear(ctx: Ctx): Found | null {
 
 // ================================================================ 對外
 
-/** 找出時間說法；都沒有時用 [發布日, 發布日 + 29] 並加 time-unspecified。 */
+function isVague(f: Found): boolean {
+  return f.flags.some((flag) => flag.code === 'time-vague');
+}
+
+/**
+ * 找出時間說法；都沒有時用 [發布日, 發布日 + 29] 並加 time-unspecified。
+ * 採用最先出現的「明確」說法；只有模糊說法（近期、最近、這幾天…）時才用最先出現的模糊說法：
+ * 「最近地震很密集，下週花蓮會有規模 6」說的是下週，「最近」是在描述過去。
+ */
 export function findTime(norm: string, orig: string, issuedAt: string): TimeResult {
   const d0 = isoToDay(issuedAt);
   const ctx: Ctx = { norm, orig, issuedAt, d0, y0: yearOfDay(d0), m0: monthDayOfDay(d0).month };
-  const candidates = [
-    ...WORD_RULES.map((rule) => firstWord(ctx, rule)),
-    ...COUNT_RULES.map((re) => firstCount(ctx, re)),
-    firstAfter(ctx),
-    firstHalfYear(ctx),
-    firstDate(ctx),
-    firstCalendarYear(ctx),
+  const candidates: Found[] = [
+    ...WORD_RULES.flatMap((rule) => allWord(ctx, rule)),
+    ...COUNT_RULES.flatMap((re) => allCount(ctx, re)),
+    ...allHours(ctx),
+    ...allAfter(ctx),
+    ...allHalf(ctx),
+    ...allDates(ctx),
   ];
-  const best = pickEarliest<Found>(candidates);
+  const calendar = firstCalendarYear(ctx);
+  if (calendar !== null) candidates.push(calendar);
+  const best = pickEarliest<Found>(candidates.filter((c) => !isVague(c))) ?? pickEarliest<Found>(candidates);
   if (best === null) {
     return {
       time: computeWindow('unspecified', issuedAt, { days: VAGUE_WINDOW_DAYS }),
@@ -598,7 +739,8 @@ export function findTime(norm: string, orig: string, issuedAt: string): TimeResu
       spans: [],
     };
   }
-  const multiple = multipleTimes(ctx, candidates);
+  // 採用的是明確說法時，模糊說法不算「另一個時間」（「最近地震很密集，下週…」只說了下週）
+  const multiple = multipleTimes(ctx, isVague(best) ? candidates : candidates.filter((c) => !isVague(c)));
   return {
     time: best.time,
     flags: multiple === null ? best.flags : [...best.flags, multiple],
@@ -610,10 +752,8 @@ export function findTime(norm: string, orig: string, issuedAt: string): TimeResu
  * 原文有沒有提到多個不同的時間窗：由左到右、起點相同取較長者，和已採用的說法重疊的不算
  * （「下下週」裡的「下週」、「今年 12 月」裡的「今年」是同一個說法的一部分）。
  */
-function multipleTimes(ctx: Ctx, candidates: readonly (Found | null)[]): Flag | null {
-  const found = candidates
-    .filter((c): c is Found => c !== null)
-    .sort((a, b) => a.start - b.start || b.end - a.end);
+function multipleTimes(ctx: Ctx, candidates: readonly Found[]): Flag | null {
+  const found = [...candidates].sort((a, b) => a.start - b.start || b.end - a.end);
   const accepted: Found[] = [];
   for (const c of found) {
     if (accepted.every((a) => c.end <= a.start || c.start >= a.end)) accepted.push(c);

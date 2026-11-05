@@ -119,8 +119,9 @@ interface ReferenceRate {
 /** 對照組和預言無關，每份資料只算一次 */
 const referenceCache = new WeakMap<DataBundle, ReferenceRate[]>();
 
+/** 震度型的預言不套用地點（資料只有全台最大震度），所以地點不同也算同一句 */
 function specKey(region: RegionSpec, size: SizeSpec): string {
-  return JSON.stringify([region, size]);
+  return JSON.stringify([size.kind === 'intensity' ? { kind: 'taiwan' } : region, size]);
 }
 
 function referenceRates(data: DataBundle): ReferenceRate[] {

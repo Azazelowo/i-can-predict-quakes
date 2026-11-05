@@ -11,7 +11,12 @@
  * - 同時提到「新竹」「嘉義」時只有一個 region-ambiguous，detail 以「、」連接（確認卡依代碼去重，只會顯示一個）。
  * - 國外地名依出現順序、去重後以「、」連接；用原文的寫法。國外地名不標 span（它們沒有被採用到 Claim）。
  * - 外海等字只在地區是縣市時才有作用（加旗標、外推改 60 公里、標成 modifier）；「台灣外海」仍是台灣及近海。
- * - 誤判排除：除了規格的「其中部分」，另收「其中部份」「當中部分」「當中部份」。
+ * - 誤判排除：除了規格的「其中部分」，另收「其中部份」「當中部分」「當中部份」；「其中國防」的「中國」、
+ *   「密集集中」的「集集」也不算。
+ * - 地標（小琉球、墾丁、龜山島…，src/core/regions.ts 的 LANDMARKS）和鄉鎮一樣，換成所在縣市、加 region-town。
+ * - 國外地名或鄉鎮後面接「路、街、巷、大道、夜市」時是路名（南京東路、重慶南路、延平北路、寧夏夜市），不算地點。
+ * - 方位詞緊接在國外地名後面（「土耳其東部」「日本南部」「美國西部」，中間只能有空白或「的」）時屬於那個國家，
+ *   不是台灣的分區。
  */
 import { DEFAULT_BUFFER_KM, OFFSHORE_BUFFER_KM } from '../core/constants';
 import {
@@ -19,6 +24,7 @@ import {
   COUNTIES,
   COUNTY_COMBOS,
   GROUPS,
+  LANDMARKS,
   OFFSHORE_WORDS,
   OUT_OF_SCOPE_PLACES,
   TAIWAN_ALIASES,
@@ -43,8 +49,16 @@ interface PlaceWord extends LexiconEntry {
   group: GroupId | null;
 }
 
-/** 常見誤判：這些片段裡的「中部」不是地名 */
-const EXCLUDED_PHRASES: readonly string[] = ['其中部分', '其中部份', '當中部分', '當中部份'];
+/** 常見誤判：這些片段裡的「中部」「中國」「集集」不是地名 */
+const EXCLUDED_PHRASES: readonly string[] = [
+  '其中部分', '其中部份', '當中部分', '當中部份', '其中國', '高中國',
+  ...['密', '聚', '匯', '群', '雲', '收', '蒐', '搜', '採', '召', '募', '交', '齊'].map((c) => `${c}集集`),
+];
+
+/** 路名、夜市名：「南京東路」「延平北路」「寧夏夜市」裡的地名不是地點 */
+const STREET_AFTER_RE = /^(?:[東西南北]?[路街巷]|大道|夜市)/;
+/** 國外地名和後面的方位詞之間只能有這些字（「日本東部」「日本的南部」） */
+const FOREIGN_GAP_RE = /^[\s的]*$/;
 
 function placeWords(): PlaceWord[] {
   const words: PlaceWord[] = [];
@@ -67,6 +81,7 @@ function placeWords(): PlaceWord[] {
     add(t.name, 'town', [t.county]);
     if (t.short !== null) add(t.short, 'town', [t.county]);
   }
+  for (const [name, county] of Object.entries(LANDMARKS)) add(name, 'town', [county]);
   for (const alias of TAIWAN_ALIASES) add(alias, 'taiwan', []);
   for (const name of OUT_OF_SCOPE_PLACES) add(name, 'foreign', []);
   return words;
@@ -93,8 +108,18 @@ export function findRegion(norm: string, orig: string): RegionResult {
   /** 被採用的台灣地名：對應的縣市組合 → 原文寫法。對應到不同縣市組合才算「多個地點」 */
   const places = new Map<string, string>();
 
+  /** 上一個國外地名的結尾（給「土耳其東部」這類說法用） */
+  let foreignEnd = -1;
   for (const { start, end, entry } of scanLexicon(norm, PLACES)) {
     const span: Span = { slot: 'region', start, end };
+    if ((entry.kind === 'foreign' || entry.kind === 'town') && STREET_AFTER_RE.test(norm.slice(end))) continue;
+    if (
+      (entry.kind === 'group' || entry.kind === 'combo') &&
+      foreignEnd >= 0 &&
+      FOREIGN_GAP_RE.test(norm.slice(foreignEnd, start))
+    ) {
+      continue;
+    }
     switch (entry.kind) {
       case 'excluded':
         break;
@@ -103,6 +128,7 @@ export function findRegion(norm: string, orig: string): RegionResult {
         break;
       case 'foreign':
         if (!foreign.has(entry.word)) foreign.set(entry.word, orig.slice(start, end));
+        foreignEnd = end;
         break;
       default:
         localSpans.push(span);

@@ -28,8 +28,25 @@ export function gateHtml(kind: GateKind, flags: readonly Flag[]): SafeHtml {
       text = GATE.notQuakeText;
       hint = GATE.notQuakeHint;
       break;
+    case 'not-prophecy':
+      title = GATE.notProphecyTitle;
+      text = GATE.notProphecyText;
+      hint = GATE.notProphecyHint;
+      break;
+    case 'empty':
+      title = GATE.emptyTitle;
+      text = GATE.emptyText;
+      hint = GATE.emptyHint;
+      break;
+    case 'past':
+      title = GATE.pastTitle;
+      text = GATE.pastText;
+      hint = GATE.pastHint;
+      break;
     case 'conflicting': {
-      const list = [detailOf(flags, 'size-multiple'), detailOf(flags, 'time-multiple')].filter(Boolean).join('；');
+      const list = [detailOf(flags, 'size-multiple'), detailOf(flags, 'time-multiple'), detailOf(flags, 'region-union')]
+        .filter(Boolean)
+        .join('；');
       title = GATE.conflictTitle;
       text = GATE.conflictText(list);
       hint = GATE.conflictHint;

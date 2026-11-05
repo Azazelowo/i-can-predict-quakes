@@ -8,6 +8,7 @@
  * - 全形空白 U+3000 → 半形空白
  * - 「台」→「臺」：比對時視為同一字（詞表也用同一個函式正規化）
  * - 「周」→「週」：MODELS 2.2 註明「周＝週」；只在比對時使用（規格未列在 2.1，於此一併處理，見 notes）
+ * - 「恒」→「恆」、「峯」→「峰」：地名常見的異體字（「恒春」「霧峯」），鄉鎮表用的是後者
  *
  * 不做大小寫轉換：規模的「M／ML／Mw」在 size.ts 以不分大小寫比對。
  */
@@ -19,6 +20,8 @@ export function normalize(text: string): string {
     else if (code === 0x3000) out[i] = ' ';
     else if (code === 0x53f0) out[i] = '臺'; // 台
     else if (code === 0x5468) out[i] = '週'; // 周
+    else if (code === 0x6052) out[i] = '恆'; // 恒
+    else if (code === 0x5cef) out[i] = '峰'; // 峯
     else out[i] = String.fromCharCode(code); // lone surrogates stay one code unit
   }
   return out.join('');

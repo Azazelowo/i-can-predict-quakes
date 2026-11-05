@@ -257,9 +257,20 @@ export function flagText(flag: Flag, days: number): string {
     }
     case 'size-official-term': {
       const official = officialTerm(detail);
-      return official
-        ? `「${detail}」是${official.meaning}，我們照這個定義計算；可以在下面改。`
-        : `「${detail}」是中央氣象署的分級名稱，我們照官方定義計算。`;
+      if (!official) return `「${detail}」是中央氣象署的分級名稱，我們照官方定義計算。`;
+      const size = official.size;
+      // 我們的判定一律是「≥ 門檻」：寫出實際用的門檻，不說「照定義計算」（微小地震、小地震是一個範圍）
+      const threshold =
+        size === null
+          ? ''
+          : size.kind === 'magnitude'
+            ? `規模 ${size.value.toFixed(1)} 以上`
+            : size.kind === 'intensity'
+              ? `震度 ${size.value} 級以上`
+              : '';
+      return threshold
+        ? `「${detail}」是${official.meaning}。這裡當成「${threshold}」計算；可以在下面改。`
+        : `「${detail}」是${official.meaning}。`;
     }
     case 'size-unsupported-term':
       return `「${detail}」這類量（地表加速度等）本網站沒有計算，我們只算規模與震度。`;
@@ -806,6 +817,15 @@ export const GATE = {
   notQuakeTitle: '這看起來不像一則地震預言',
   notQuakeText: '原文裡找不到和地震有關的字（例如地震、震度、規模、有感），可能是貼錯內容，或只是在測試。',
   notQuakeHint: '如果真的是一則地震預言，可以先在上面的確認卡選好時間、地點和大小，再按下面的按鈕。',
+  notProphecyTitle: '這看起來不是一則預言',
+  notProphecyText: '原文像是在講地震演練、保險或防災準備，沒有預言會發生多大的地震。',
+  notProphecyHint: '如果真的是一則預言，可以先在上面的確認卡選好時間、地點和大小，再按下面的按鈕。',
+  emptyTitle: '這句話沒有說什麼時候、在哪裡、多大',
+  emptyText: '一則預言至少要說出時間、地點或大小其中一項，才能判斷「中」或「不中」。',
+  emptyHint: '可以在上面的確認卡補上，或換一句完整的預言，例如「下週花蓮會有規模 6 以上的地震」。',
+  pastTitle: '這句話說的好像是已經發生的地震',
+  pastText: '原文提到過去的時間（例如去年、昨天、某個已經過去的年份），卻沒有說未來什麼時候。已經發生的地震不需要猜，所以沒有「猜中」的問題。',
+  pastHint: '如果這是一則預言，請在上面的確認卡選好時間；或按下面的按鈕，照目前的設定（未來 30 天）計算。',
   conflictTitle: '這則預言的說法互相矛盾',
   conflictText: (list: string) =>
     `原文同時提到好幾種說法（${list}）。什麼都說的預言，等於什麼都沒說：不管發生什麼，都能找到一種說法算「中」。`,

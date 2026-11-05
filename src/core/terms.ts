@@ -11,7 +11,7 @@
  *
  * size 為 null 的詞（大地震、強震、稍顯著、顯著）照樣看解讀光譜：
  * 大地震、強震是最常見的口語說法，預言者和讀者心中的「大」沒有共同標準，這正是網站要呈現的事；
- * 稍顯著、顯著地震是用有感半徑分的，資料裡沒有有感半徑，算不出來。
+ * 稍顯著、顯著地震是用最大有感距離分的，資料裡沒有有感距離，算不出來。
  */
 import type { SizeSpec } from './types';
 
@@ -37,12 +37,12 @@ export const OFFICIAL_TERMS: readonly OfficialTerm[] = [
   { word: '中地震', size: { kind: 'magnitude', value: 5.0, tolerance: 'strict' }, meaning: `${MAG_CLASS}：規模 5.0–7.0（更大的也算中）`, spectrumId: 'm5' },
   { word: '大地震', size: null, meaning: `${MAG_CLASS}：規模 7.0 以上才叫大地震`, spectrumId: 'm7' },
   // 依有感範圍（地震百問第 17 題）
-  { word: '局發地震', size: { kind: 'intensity', value: 1 }, meaning: `${FELT_CLASS}：有感半徑 100 公里以內；資料沒有有感半徑，用「有感」（震度 1 級以上）計算，是上限`, spectrumId: 'felt' },
-  { word: '小區域有感地震', size: { kind: 'intensity', value: 1 }, meaning: `${FELT_CLASS}：有感半徑 100–200 公里；資料沒有有感半徑，用「有感」（震度 1 級以上）計算，是上限`, spectrumId: 'felt' },
-  { word: '小區域地震', size: { kind: 'intensity', value: 1 }, meaning: `${FELT_CLASS}：有感半徑 100–200 公里；資料沒有有感半徑，用「有感」（震度 1 級以上）計算，是上限`, spectrumId: 'felt' },
-  { word: '稍顯著地震', size: null, meaning: `${FELT_CLASS}：有感半徑 200–300 公里；資料沒有有感半徑，先看解讀光譜` },
-  { word: '顯著有感地震', size: null, meaning: `${FELT_CLASS}：有感半徑 300 公里以上；資料沒有有感半徑，先看解讀光譜` },
-  { word: '顯著地震', size: null, meaning: `${FELT_CLASS}：有感半徑 300 公里以上；資料沒有有感半徑，先看解讀光譜` },
+  { word: '局發地震', size: { kind: 'intensity', value: 1 }, meaning: `${FELT_CLASS}：最大有感距離 100 公里以內。資料沒有有感距離，只能用「有感」代替，算出來的是上限`, spectrumId: 'felt' },
+  { word: '小區域有感地震', size: { kind: 'intensity', value: 1 }, meaning: `${FELT_CLASS}：最大有感距離 100–200 公里。資料沒有有感距離，只能用「有感」代替，算出來的是上限`, spectrumId: 'felt' },
+  { word: '小區域地震', size: { kind: 'intensity', value: 1 }, meaning: `${FELT_CLASS}：最大有感距離 100–200 公里。資料沒有有感距離，只能用「有感」代替，算出來的是上限`, spectrumId: 'felt' },
+  { word: '稍顯著地震', size: null, meaning: `${FELT_CLASS}：最大有感距離 200–300 公里；資料沒有有感距離，先看解讀光譜` },
+  { word: '顯著有感地震', size: null, meaning: `${FELT_CLASS}：最大有感距離 300 公里以上；資料沒有有感距離，先看解讀光譜` },
+  { word: '顯著地震', size: null, meaning: `${FELT_CLASS}：最大有感距離 300 公里以上；資料沒有有感距離，先看解讀光譜` },
   // 震度名稱（舊制；2020 年起的分級表只寫級數）
   { word: '微震', size: { kind: 'intensity', value: 1 }, meaning: `${INTENSITY_NAME}：1 級`, spectrumId: 'felt' },
   { word: '輕震', size: { kind: 'intensity', value: 2 }, meaning: `${INTENSITY_NAME}：2 級` },

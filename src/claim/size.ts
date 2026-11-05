@@ -44,9 +44,13 @@ interface SizeFound extends SizeResult {
 /** 關鍵字與數值之間可以出現的字。每個選項都不是其他選項的組合，避免 regex 回溯爆炸。 */
 const FILL = '(?:大約|達到|高達|可達|至少|超過|大於|將近|接近|可能|上看|約|達|為|是|有|在|會|將|恐|逾|≥|>|=|:|\\s)*';
 /** 數值後面接這些字時是在數東西，不是大小（「日本」除外） */
-const NOT_SIZE_AFTER = '(?!\\s*(?:[次個天週年月星禮些定直樣種倍分秒時號隻份成萬千億/]|日(?!本)))';
-/** 規模關鍵字：芮氏、規模，或 M、ML、Mw、Ms、Mj、Mjma、mb（前面不能是英文字母） */
-const MAG_KEYWORD = '芮氏規模|芮氏|規模|(?<![A-Za-z])(?:[Mm][Jj][Mm][Aa]|[Mm][LlWwSsJjBb]?)';
+const NOT_SIZE_AFTER =
+  '(?!\\s*(?:[次個天週年月星禮些定直樣種倍分秒時號隻份成萬千億/]|日(?!本)|晶片|處理器|系列|車款|跑車|手機|筆電|電腦|型號|Pro|Max|Ultra))';
+/**
+ * 規模關鍵字：芮氏、規模，或 M、ML、Mw、Ms、Mj、Mjma、mb。
+ * M 前面不能是英文字（中間隔空白也不行）：「Apple M4」「BMW M3」是產品型號，不是規模。
+ */
+const MAG_KEYWORD = '芮氏規模|芮氏|規模|(?<![A-Za-z][\\s-]{0,3})(?:[Mm][Jj][Mm][Aa]|[Mm][LlWwSsJjBb]?)';
 
 /** 規模 v、芮氏 v、芮氏規模 v、M v、ML v、Mw v（可接「級」） */
 const MAGNITUDE_RE = new RegExp(`(${MAG_KEYWORD})(${FILL})(${NUM_SRC})${NOT_SIZE_AFTER}(?:\\s*級)?`, 'g');
@@ -65,16 +69,51 @@ const SCALE_RE = new RegExp(`((?:舊制|新制)(?:震度)?)(${FILL})(${NUM_SRC})
 const LEVEL_RE = new RegExp(`${NUM_LEFT}(?<!第\\s*)(${NUM_SRC})\\s*級`, 'g');
 const KEYWORD_AFTER_RE = /\s*(?:的\s*)?(?:震度|規模)/y;
 
-const BIG_WORDS_RE = /超大地震|大規模地震|強烈地震|大地震|地牛翻身|毀滅性|災難性|強震|巨震|大震/g;
-const FELT_WORDS_RE = /有感|會搖|會晃|感覺得到/g;
 /**
- * 中央氣象署的分級名稱（由長到短：「小區域有感地震」先於「小地震」「有感」）。
- * 「中地震」「中震」前面是「臺」時是地名（「台中地震」「台中震度 5 級」），不算分級名稱。
+ * 「震」後面接這些字時是別的詞（震動、震撼、震盪、震醒、震驚、震怒、震耳、震懾、震天、震央、震源、震度、震波），
+ * 所以「手機輕震動」不是輕震、「強震撼」不是強震、「最強震度」也不是強震。
  */
+const ZHEN_WORD_AFTER = '動撼盪蕩醒驚怒耳懾天央源度波';
+/** 「中」前面是這些字時「中」屬於前一個詞（台中、高中、國中、夢中、其中、心中、當中、空中、途中、集中、期中…） */
+const ZHONG_BEFORE = '臺高國夢其心當空途正集之睡年月家城市胸腦眼期';
+
+/**
+ * 分級名稱的前後文限制：名稱的字和前後的字組成別的詞時不算。
+ * 例：「劇烈震動」「強烈震動」的「烈震」、「心中震撼」「睡夢中震醒」的「中震」、「高中地震演練」的「中地震」、
+ * 「大小地震不斷」的「小地震」、「減輕震度」的「輕震」。
+ */
+const TERM_GUARDS: Readonly<Record<string, { before?: string; after?: string }>> = {
+  微震: { before: '細輕', after: ZHEN_WORD_AFTER },
+  輕震: { before: '減年', after: ZHEN_WORD_AFTER },
+  弱震: { before: '減衰削', after: ZHEN_WORD_AFTER },
+  中震: { before: ZHONG_BEFORE, after: ZHEN_WORD_AFTER },
+  強震: { before: '增加最堅頑', after: ZHEN_WORD_AFTER },
+  烈震: { before: '劇強猛激熱慘壯', after: ZHEN_WORD_AFTER },
+  劇震: { before: '加', after: ZHEN_WORD_AFTER },
+  中地震: { before: ZHONG_BEFORE },
+  小地震: { before: '大' },
+};
+
+function guarded(word: string): string {
+  const g = TERM_GUARDS[word];
+  if (g === undefined) return word;
+  return `${g.before ? `(?<![${g.before}])` : ''}${word}${g.after ? `(?![${g.after}])` : ''}`;
+}
+
+const BIG_WORDS_RE = new RegExp(
+  `超大地震|大規模地震|強烈地震|大地震|地牛翻身|毀滅性|災難性|${guarded('強震')}|巨震(?![${ZHEN_WORD_AFTER}])|大震(?![${ZHEN_WORD_AFTER}])`,
+  'g',
+);
+/**
+ * 「有感」這類詞。「有感而發」「我有感覺」「有感動」不是有感地震；「會搖頭」「會搖擺」不是搖晃；
+ * 「我感覺得到明天會地震」是預感，不是「感覺得到搖晃」。
+ */
+const FELT_WORDS_RE = /有感(?![覺而情謝動染想冒])|會搖(?![頭擺滾旗手錢鈴籃])|會晃|(?<![我你他她們])感覺得到/g;
+/** 中央氣象署的分級名稱（由長到短：「小區域有感地震」先於「小地震」「有感」），各自套上 TERM_GUARDS 的前後文限制 */
 const TERMS_RE = new RegExp(
   [...OFFICIAL_TERMS]
     .sort((a, b) => b.word.length - a.word.length)
-    .map((t) => (t.word.startsWith('中') ? `(?<!臺)${t.word}` : t.word))
+    .map((t) => guarded(t.word))
     .join('|'),
   'g',
 );
@@ -312,6 +351,9 @@ interface TermHit extends WordHit {
 function termHits(norm: string): TermHit[] {
   const out: TermHit[] = [];
   forEachMatch(TERMS_RE, norm, (m) => {
+    // 和前一個名稱重疊的不算（「微小地震」裡的「小地震」）
+    const prev = out[out.length - 1];
+    if (prev !== undefined && m.index < prev.end) return false;
     const term = officialTerm(m[0]);
     if (term !== undefined) out.push({ start: m.index, end: m.index + m[0].length, term });
     return false;
