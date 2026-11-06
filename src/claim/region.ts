@@ -52,6 +52,8 @@ interface PlaceWord extends LexiconEntry {
 /** 常見誤判：這些片段裡的「中部」「中國」「集集」不是地名 */
 const EXCLUDED_PHRASES: readonly string[] = [
   '其中部分', '其中部份', '當中部分', '當中部份', '其中國', '高中國',
+  // 「我家後山」「學校後山」是屋子、學校後面的山，不是「後山」（花東）
+  ...['家', '校', '廟', '屋', '村', '司', '區', '寺', '院'].map((c) => `${c}後山`),
   ...['密', '聚', '匯', '群', '雲', '收', '蒐', '搜', '採', '召', '募', '交', '齊'].map((c) => `${c}集集`),
 ];
 
@@ -160,7 +162,7 @@ export function findRegion(norm: string, orig: string): RegionResult {
     if (offshore.length > 0) flags.push({ code: 'region-offshore' });
     if (ambiguous.size > 0) flags.push({ code: 'region-ambiguous', detail: [...ambiguous.values()].join('、') });
     if (towns.size > 0) flags.push({ code: 'region-town', detail: [...towns.values()].join('、') });
-    // 提到兩個以上的地點（例如「南部、西部」「卑南或池上」）：合在一起算，提醒使用者
+    // 提到兩個以上的地點（例如「南部、西部」「台北、台中」；同一個縣市的「卑南或池上」只算一個）：合在一起算，提醒使用者
     if (places.size > 1) flags.push({ code: 'region-union', detail: [...places.values()].join('、') });
     const modifierSpans: Span[] = offshore.map((h) => ({ slot: 'modifier', start: h.start, end: h.end }));
     return { region, flags, spans: [...localSpans, ...modifierSpans] };

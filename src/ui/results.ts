@@ -8,10 +8,11 @@ import { MODES } from '../copy/zh-TW';
 import { cardHtml, natureLegend, type CardContext, type CardSpec } from './cards/common';
 import { CARD_BUILDERS } from './cards/registry';
 import { html, type SafeHtml } from './html';
+import { officialSpectrumId } from './official';
 import { overviewHtml } from './overview';
 
 export function cardContext(state: AppState, results: Results, data: DataBundle): CardContext {
-  return { results, data, width: state.chartWidth, bayes: state.bayes };
+  return { results, data, width: state.chartWidth, bayes: state.bayes, officialSpectrumId: officialSpectrumId(state) };
 }
 
 /** 這次要顯示的模式卡（依顯示順序） */

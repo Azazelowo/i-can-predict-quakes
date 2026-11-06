@@ -33,7 +33,16 @@ export function spectrumLegend(): SafeHtml {
   </ul>`;
 }
 
-export function spectrumChart(items: readonly Interpretation[], current: SizeSpec, width: number): SafeHtml {
+/**
+ * officialId：預言用的詞有中央氣象署的定義時（「大地震」= 規模 7.0 以上、「強震」= 舊制震度 5 級），
+ * 那一列加上「官方定義」標記；沒有時為 null。
+ */
+export function spectrumChart(
+  items: readonly Interpretation[],
+  current: SizeSpec,
+  width: number,
+  officialId: string | null = null,
+): SafeHtml {
   const wide = width >= 520;
   const rowH = wide ? 40 : 50;
   const axisH = 26;
@@ -52,6 +61,7 @@ export function spectrumChart(items: readonly Interpretation[], current: SizeSpe
   const rows = items.map((item, i) => {
     const top = axisH + i * rowH;
     const isCurrent = sameSize(item.size, current);
+    const isOfficial = item.id === officialId;
     const label = SPECTRUM_LABELS[item.id] ?? item.id;
     const value = formatPercent(item.p);
     const trackY = wide ? top + rowH / 2 : top + 34;
@@ -60,9 +70,9 @@ export function spectrumChart(items: readonly Interpretation[], current: SizeSpe
     const dotX = x(item.p);
     const valueRight = dotX > x1 - 56;
     const r = isCurrent ? 6.5 : 5;
-    return html`<g class="spec-row${isCurrent ? ' is-current' : ''}" data-action="pick-spectrum" data-id="${item.id}" role="button" tabindex="0" aria-pressed="${isCurrent ? 'true' : 'false'}" aria-label="${M4.spectrumRowAria(label, value, isCurrent)}">
+    return html`<g class="spec-row${isCurrent ? ' is-current' : ''}" data-action="pick-spectrum" data-id="${item.id}" role="button" tabindex="0" aria-pressed="${isCurrent ? 'true' : 'false'}" aria-label="${M4.spectrumRowAria(label, value, isCurrent, isOfficial)}">
       <rect class="spec-hit" x="1" y="${fx(top + 1)}" width="${fx(width - 2)}" height="${fx(rowH - 2)}" rx="8"/>
-      <text class="spec-label" x="${fx(labelX)}" y="${fx(labelY)}">${label}${isCurrent ? html`<tspan class="spec-current" dx="6">${M4.spectrumCurrent}</tspan>` : ''}</text>
+      <text class="spec-label" x="${fx(labelX)}" y="${fx(labelY)}">${label}${isOfficial ? html`<tspan class="spec-official" dx="6">${M4.spectrumOfficial}</tspan>` : ''}${isCurrent ? html`<tspan class="spec-current" dx="6">${M4.spectrumCurrent}</tspan>` : ''}</text>
       <line class="spec-track" x1="${fx(x0)}" x2="${fx(x1)}" y1="${fx(trackY)}" y2="${fx(trackY)}"/>
       <line class="spec-stem" x1="${fx(x0)}" x2="${fx(dotX)}" y1="${fx(trackY)}" y2="${fx(trackY)}"/>
       ${marker(item.size.kind, dotX, trackY, r)}

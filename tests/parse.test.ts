@@ -57,6 +57,7 @@ const PARSE_FLAGS: ReadonlySet<FlagCode> = new Set<FlagCode>([
   'time-past',
   'time-clamped',
   'time-multiple',
+  'time-unrecognized',
   'region-unspecified',
   'region-out-of-scope',
   'region-foreign-only',
@@ -71,6 +72,7 @@ const PARSE_FLAGS: ReadonlySet<FlagCode> = new Set<FlagCode>([
   'size-magnitude-type',
   'size-official-term',
   'size-unsupported-term',
+  'size-negated',
   'repeat-mentioned',
 ]);
 
@@ -134,6 +136,7 @@ function expectValid(text: string, issuedAt: string, r: ParseResult, label: stri
   expect(time.days, label).toBeGreaterThanOrEqual(1);
   expect(time.days, label).toBeLessThanOrEqual(MAX_WINDOW_DAYS);
   expect(time.kind === 'unspecified', `${label}：time-unspecified`).toBe(has('time-unspecified'));
+  if (has('time-unrecognized')) expect(time.kind, `${label}：time-unrecognized 只和沒說時間一起出現`).toBe('unspecified');
   if (time.kind === 'vague') expect(has('time-vague'), `${label}：vague 要有 time-vague`).toBe(true);
   if (has('time-vague')) expect(['vague', 'withinDays'], label).toContain(time.kind);
   if (time.kind === 'vague' || time.kind === 'unspecified') expect(time.days, label).toBe(VAGUE_WINDOW_DAYS);

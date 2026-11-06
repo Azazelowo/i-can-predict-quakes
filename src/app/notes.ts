@@ -13,16 +13,26 @@ export type Notes = Record<NoteSlot, Flag[]>;
 /** 顯示順序（與 FlagCode 的定義順序相同） */
 const ORDER: readonly FlagCode[] = [
   'time-unspecified',
+  'time-unrecognized',
   'time-vague',
   'time-past',
   'time-clamped',
+  'time-multiple',
   'region-unspecified',
+  'region-foreign-only',
   'region-out-of-scope',
   'region-offshore',
   'region-ambiguous',
+  'region-town',
+  'region-union',
+  'size-negated',
   'size-unspecified',
+  'size-official-term',
   'size-level-ambiguous',
+  'size-magnitude-type',
+  'size-multiple',
   'size-below-min',
+  'size-unsupported-term',
   'size-intensity-region-ignored',
   'repeat-mentioned',
 ];
@@ -67,8 +77,12 @@ export function withCode(flags: readonly Flag[], flag: Flag): Flag[] {
 export function visibleFlags(notes: Notes, computed: readonly Flag[]): Flag[] {
   const seen = new Set<FlagCode>();
   const out: Flag[] = [];
-  for (const f of [...notes.time, ...notes.region, ...notes.size, ...notes.other, ...computed]) {
+  const all = [...notes.time, ...notes.region, ...notes.size, ...notes.other, ...computed];
+  // 只提到國外時，「國外也算進來命中率只會更高」不成立（這則預言根本不含台灣），只留 region-foreign-only
+  const foreignOnly = all.some((f) => f.code === 'region-foreign-only');
+  for (const f of all) {
     if (seen.has(f.code)) continue;
+    if (foreignOnly && f.code === 'region-out-of-scope') continue;
     seen.add(f.code);
     out.push(f);
   }

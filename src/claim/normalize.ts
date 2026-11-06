@@ -9,6 +9,7 @@
  * - 「台」→「臺」：比對時視為同一字（詞表也用同一個函式正規化）
  * - 「周」→「週」：MODELS 2.2 註明「周＝週」；只在比對時使用（規格未列在 2.1，於此一併處理，見 notes）
  * - 「恒」→「恆」、「峯」→「峰」：地名常見的異體字（「恒春」「霧峯」），鄉鎮表用的是後者
+ * - 「≧」→「≥」、「≦」→「≤」：台灣的注音輸入法常打出前者
  *
  * 不做大小寫轉換：規模的「M／ML／Mw」在 size.ts 以不分大小寫比對。
  */
@@ -22,6 +23,8 @@ export function normalize(text: string): string {
     else if (code === 0x5468) out[i] = '週'; // 周
     else if (code === 0x6052) out[i] = '恆'; // 恒
     else if (code === 0x5cef) out[i] = '峰'; // 峯
+    else if (code === 0x2267) out[i] = '≥'; // ≧（注音輸入法常打出這個）
+    else if (code === 0x2266) out[i] = '≤'; // ≦
     else out[i] = String.fromCharCode(code); // lone surrogates stay one code unit
   }
   return out.join('');

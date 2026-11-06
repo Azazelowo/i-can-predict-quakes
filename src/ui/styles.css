@@ -410,7 +410,10 @@ main:focus {
 }
 
 /*
- * 雙欄（寬螢幕）：左邊輸入與確認卡、右邊結果，改一項就能直接看到右邊的數字變化。
+ * 雙欄（寬螢幕）：左邊輸入與確認卡、右邊結果，兩欄都固定在畫面上、各自捲動。
+ * 只固定右欄不夠：捲到左欄最下面的「大小」時，雙欄區塊的底部已經到了，右欄會被往上推出畫面。
+ * 兩欄各自捲動之後，改確認卡的任何一項，右邊的主數字都還在畫面上。
+ * 欄位捲到底時會接著捲動整頁（沒有 overscroll-behavior: contain），才捲得到頁尾。
  * 斷點要和 src/app/controller.ts 的 WIDE_QUERY 一致。
  */
 @media (min-width: 1100px) {
@@ -423,6 +426,15 @@ main:focus {
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     gap: 24px;
     align-items: start;
+  }
+
+  :root[data-layout="wide"] .col-side,
+  :root[data-layout="wide"] .col-main {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   /* 左欄比較窄：三步驟改成一步一列 */
@@ -1865,6 +1877,12 @@ input[type="range"] {
   font-weight: 800;
 }
 
+.spec-official {
+  fill: var(--region-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
 .spec-current {
   fill: var(--accent);
   font-weight: 800;
@@ -2146,6 +2164,21 @@ input[type="range"] {
   border-radius: 999px;
   background: var(--track);
   overflow: hidden;
+}
+
+/* 窄螢幕：等級移到預言文字下面，文字才不會被擠成一行一個字 */
+@media (max-width: 599.98px) {
+  .compare-row {
+    grid-template-columns: 4.6em minmax(0, 1fr);
+    grid-template-areas:
+      "p label"
+      "p level"
+      "bar bar";
+  }
+
+  .compare-level {
+    white-space: normal;
+  }
 }
 
 .compare-bar > span {

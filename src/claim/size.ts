@@ -43,9 +43,14 @@ interface SizeFound extends SizeResult {
 
 /** 關鍵字與數值之間可以出現的字。每個選項都不是其他選項的組合，避免 regex 回溯爆炸。 */
 const FILL = '(?:大約|達到|高達|可達|至少|超過|大於|將近|接近|可能|上看|約|達|為|是|有|在|會|將|恐|逾|≥|>|=|:|\\s)*';
-/** 數值後面接這些字時是在數東西，不是大小（「日本」除外） */
+/**
+ * 數值的右邊界：整個數字都要比對到。沒有這個邊界時，「規模將是 50 年來最大」的「50」被下面的「年」排除後，
+ * regex 會退回「5」，下一個字是數字，排除條件就不成立了。
+ */
+const NUM_END = '(?![\\d〇零一二兩三四五六七八九十百]|[.點][\\d〇零一二三四五六七八九])';
+/** 數值後面接這些字時是在數東西或是產品型號，不是大小（「日本」除外；「M2 MacBook」「M 6 件」） */
 const NOT_SIZE_AFTER =
-  '(?!\\s*(?:[次個天週年月星禮些定直樣種倍分秒時號隻份成萬千億/]|日(?!本)|晶片|處理器|系列|車款|跑車|手機|筆電|電腦|型號|Pro|Max|Ultra))';
+  '(?!\\s*(?:[次個天週年月星禮些定直樣種倍分秒時號隻份成萬千億元件碼吋尺%％/]|日(?!本)|晶片|處理器|系列|車款|跑車|手機|筆電|電腦|型號|[A-Za-z]{2,}))';
 /**
  * 規模關鍵字：芮氏、規模，或 M、ML、Mw、Ms、Mj、Mjma、mb。
  * M 前面不能是英文字（中間隔空白也不行）：「Apple M4」「BMW M3」是產品型號，不是規模。
@@ -53,18 +58,26 @@ const NOT_SIZE_AFTER =
 const MAG_KEYWORD = '芮氏規模|芮氏|規模|(?<![A-Za-z][\\s-]{0,3})(?:[Mm][Jj][Mm][Aa]|[Mm][LlWwSsJjBb]?)';
 
 /** 規模 v、芮氏 v、芮氏規模 v、M v、ML v、Mw v（可接「級」） */
-const MAGNITUDE_RE = new RegExp(`(${MAG_KEYWORD})(${FILL})(${NUM_SRC})${NOT_SIZE_AFTER}(?:\\s*級)?`, 'g');
+const MAGNITUDE_RE = new RegExp(`(${MAG_KEYWORD})(${FILL})(${NUM_SRC})${NUM_END}${NOT_SIZE_AFTER}(?:\\s*級)?`, 'g');
 /** 「6 級規模」：規模在後面，也不算歧義 */
 const MAGNITUDE_AFTER_RE = new RegExp(`${NUM_LEFT}(${NUM_SRC})\\s*級\\s*(?:的\\s*)?規模`, 'g');
 /** 震度 v、震度 v 弱／強（可接「級」） */
-const INTENSITY_RE = new RegExp(`震度(${FILL})(${NUM_SRC})${NOT_SIZE_AFTER}(\\s*[弱強])?(?:\\s*級)?`, 'g');
+const INTENSITY_RE = new RegExp(`震度(${FILL})(${NUM_SRC})${NUM_END}${NOT_SIZE_AFTER}(\\s*[弱強])?(?:\\s*級)?`, 'g');
 /** v 級震度、v 弱震度 */
 const INTENSITY_AFTER_RE = new RegExp(
   `${NUM_LEFT}(${NUM_SRC})\\s*(?:([弱強])(?:\\s*級)?|級)\\s*(?:的\\s*)?震度`,
   'g',
 );
 /** 舊制、新制震度（不一定寫「震度」）：「舊制 7 級」「新制 6 弱」「舊制震度 5 級」 */
-const SCALE_RE = new RegExp(`((?:舊制|新制)(?:震度)?)(${FILL})(${NUM_SRC})${NOT_SIZE_AFTER}(\\s*[弱強])?(?:\\s*級)?`, 'g');
+const SCALE_RE = new RegExp(
+  `((?:舊制|新制)(?:震度)?)(${FILL})(${NUM_SRC})${NUM_END}${NOT_SIZE_AFTER}(\\s*[弱強])?(?:\\s*級)?`,
+  'g',
+);
+/**
+ * 單獨的「5 強」「6 弱」（2020 年新制震度常見的寫法，前後沒有「震度」）：震度。只收阿拉伯數字，
+ * 「五強」「六強賽」是排名、球賽。
+ */
+const BARE_SHINDO_RE = /(?<![\d.])([56])\s{0,2}([弱強])(?!\s*(?:賽|隊|國|之|人|者|勢|化|調|項|權))/g;
 /** 「v 級」：前後都沒有規模、芮氏、震度 → 規模（寬鬆）＋ size-level-ambiguous */
 const LEVEL_RE = new RegExp(`${NUM_LEFT}(?<!第\\s*)(${NUM_SRC})\\s*級`, 'g');
 const KEYWORD_AFTER_RE = /\s*(?:的\s*)?(?:震度|規模)/y;
@@ -108,7 +121,18 @@ const BIG_WORDS_RE = new RegExp(
  * 「有感」這類詞。「有感而發」「我有感覺」「有感動」不是有感地震；「會搖頭」「會搖擺」不是搖晃；
  * 「我感覺得到明天會地震」是預感，不是「感覺得到搖晃」。
  */
-const FELT_WORDS_RE = /有感(?![覺而情謝動染想冒])|會搖(?![頭擺滾旗手錢鈴籃])|會晃|(?<![我你他她們])感覺得到/g;
+const FELT_WORDS_RE = new RegExp(
+  [
+    // 有感：後面接地震、搖晃，或在句尾、標點前（「吉安鄉近期有感」）；或前面是會、都、臺（「下週會有感」「全臺有感」）。
+    // 「很有感」「讓民眾有感」「有感加薪」「物價有感上漲」是政策、生活用語，不是有感地震。
+    '(?<!很)(?<!讓[^，,。\\s]{0,4})有感(?=\\s{0,2}(?:的\\s{0,2})?(?:地震|搖|晃|震)|\\s{0,2}(?:$|[，,。.!！?？~～、]))',
+    '(?<=[會都臺])有感(?![覺而情謝動染想冒加減施上下降經政])',
+    '會搖(?![頭擺滾旗手錢鈴籃])',
+    '會晃',
+    '(?<![我你他她們])感覺得到',
+  ].join('|'),
+  'g',
+);
 /** 中央氣象署的分級名稱（由長到短：「小區域有感地震」先於「小地震」「有感」），各自套上 TERM_GUARDS 的前後文限制 */
 const TERMS_RE = new RegExp(
   [...OFFICIAL_TERMS]
@@ -279,6 +303,14 @@ function intensitiesAfter(norm: string): SizeFound[] {
   });
 }
 
+function bareShindo(norm: string): SizeFound[] {
+  return collect(BARE_SHINDO_RE, norm, (m) => {
+    const v = intensityValue(m[1] ?? '', m[2]);
+    if (v === null || !v.suffixOk) return null;
+    return intensityFound(norm, m.index, m.index + m[0].length, m.index + (m[1] ?? '').length, v.value);
+  });
+}
+
 function scales(norm: string): SizeFound[] {
   return collect(SCALE_RE, norm, (m) => {
     const prefix = m[1] ?? '';
@@ -361,6 +393,29 @@ function termHits(norm: string): TermHit[] {
   return out;
 }
 
+/**
+ * 說的是「不會發生」或「最多多大」（size-negated；規格 2.4）：
+ * - 否定：同一個子句裡，不會、不可能、不至於、不太可能、不再、沒有，後面 10 個字內接地震用詞
+ *   （「會不會」「有沒有」是問句，不算）
+ * - 上限：大小後面接以下、以內、未滿、不到；或前面是最多、頂多、不超過、小於、低於、≤
+ * 回傳原文用詞（給提醒用）；都沒有時回傳 null。
+ */
+const NEGATION_RE = /(?<!會)不(?:會|可能|至於|太可能|再)|(?<!有)沒有/g;
+const NEGATED_TARGET_RE = /^[^，,。.!！？?；;\n]{0,10}?(?:地震|規模|震度|強震|有感|搖|晃|[Mm]\s?\d)/;
+const UPPER_AFTER_RE =
+  /(?:規模|芮氏|震度|[Mm][LlWw]?)\s{0,2}(?:[約達為是]\s{0,2})?\d+(?:\.\d+)?\s{0,2}(?:[弱強]\s{0,2})?(?:級\s{0,2})?(以下|以內|未滿|不到)/;
+const UPPER_BEFORE_RE = /(最多|頂多|不超過|小於|低於|≤)\s{0,2}(?:規模|芮氏|震度|[Mm][LlWw]?)?\s{0,2}\d/;
+
+function negation(norm: string): string | null {
+  for (const m of norm.matchAll(NEGATION_RE)) {
+    if (NEGATED_TARGET_RE.test(norm.slice(m.index + m[0].length))) return m[0];
+  }
+  const after = UPPER_AFTER_RE.exec(norm);
+  if (after !== null) return after[1] ?? null;
+  const before = UPPER_BEFORE_RE.exec(norm);
+  return before !== null ? (before[1] ?? null) : null;
+}
+
 function sizeKey(size: SizeSpec): string {
   return size.kind === 'unspecified' ? 'u' : `${size.kind}:${size.value}`;
 }
@@ -386,6 +441,7 @@ export function findSize(norm: string, orig: string): SizeResult {
     ...intensities(norm),
     ...intensitiesAfter(norm),
     ...scales(norm),
+    ...bareShindo(norm),
     ...levels(norm),
   ];
   const terms = termHits(norm);
@@ -394,6 +450,8 @@ export function findSize(norm: string, orig: string): SizeResult {
   const extra: Flag[] = [];
   const multiple = multipleFlag(norm, numeric, terms);
   if (multiple !== null) extra.push(multiple);
+  const negated = negation(norm);
+  if (negated !== null) extra.push({ code: 'size-negated', detail: negated });
   const unsupported = allWords(UNSUPPORTED_RE, norm)[0];
   if (unsupported !== undefined) {
     extra.push({ code: 'size-unsupported-term', detail: norm.slice(unsupported.start, unsupported.end) });

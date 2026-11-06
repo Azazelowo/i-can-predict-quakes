@@ -214,6 +214,8 @@ export function flagText(flag: Flag, days: number): string {
         : `這個時間說法沒有明確天數，我們先用 ${days} 天計算。`;
     case 'time-past':
       return '這個日期已經過了，我們照樣用它計算。';
+    case 'time-unrecognized':
+      return `提到「${detail}」，但節日、連假和農曆日期我們還不會換算，先用未來 30 天；請在上面的「時間」選日期。`;
     case 'time-clamped':
       return `時間太長，最多算 ${MAX_WINDOW_DAYS} 天。`;
     case 'region-unspecified':
@@ -236,21 +238,21 @@ export function flagText(flag: Flag, days: number): string {
       return official ? `${base}參考：${official.meaning}。` : base;
     }
     case 'size-level-ambiguous':
-      return '「幾級」可能是規模也可能是震度，我們先當成規模；可以在下面改成震度。';
+      return '「幾級」可能是規模也可能是震度，我們先當成規模；可以在上面的「大小」改成震度。';
     case 'size-below-min':
       return `規模 ${MIN_ML} 以下的小地震太多、早期紀錄也不完整，我們用 ${MIN_ML.toFixed(1)} 計算（實際命中率只會更高）。`;
     case 'size-intensity-region-ignored':
       return '震度資料只有「全台任一地點的最大震度」，所以不套用地點。';
     case 'time-multiple':
-      return `提到好幾個時間（${detail}），我們先用最先出現的那個；可以在上面改。`;
+      return `提到好幾個時間（${detail}），我們用地震說法前面最近的那一個；可以在上面的「時間」修改。`;
     case 'region-foreign-only':
       return '這則預言只提到國外，沒有台灣的地名。本網站目前只算台灣及近海。';
     case 'region-town':
-      return `提到鄉鎮（${detail}），我們用它所在的縣市計算（含縣界外的範圍），範圍會比鄉鎮大一些。`;
+      return `提到鄉鎮或地標（${detail}），我們用它所在的整個縣市、再往縣界外推計算：範圍比原本說的地方大很多，命中率會偏高。`;
     case 'region-union':
       return `提到好幾個地點（${detail}），我們全部合在一起算：任何一個地方發生都算中，所以命中率會比只說一個地方高。`;
     case 'size-multiple':
-      return `提到好幾個不同的大小（${detail}），我們先用最先出現的那個；可以在下面改。`;
+      return `提到好幾個不同的大小（${detail}），我們先用最先出現的那個；可以在上面的「大小」修改。`;
     case 'size-magnitude-type': {
       const name = MAGNITUDE_TYPES[detail.toLowerCase()] ?? detail;
       return `你寫的是${name}。本網站用中央氣象署的近震規模 ML，兩種規模的數值不同（例如 1999 年集集地震 ML 7.3、Mw 7.7），這裡直接把數字當成 ML 計算。`;
@@ -269,9 +271,11 @@ export function flagText(flag: Flag, days: number): string {
               ? `震度 ${size.value} 級以上`
               : '';
       return threshold
-        ? `「${detail}」是${official.meaning}。這裡當成「${threshold}」計算；可以在下面改。`
+        ? `「${detail}」是${official.meaning}。這裡當成「${threshold}」計算；可以在上面的「大小」修改。`
         : `「${detail}」是${official.meaning}。`;
     }
+    case 'size-negated':
+      return `原文說的是「${detail}」：不會發生，或最多多大。本網站算的是「會發生、而且至少多大」的預言；說「不會」的預言猜中的機會，正好是 1 減去這裡的數字。`;
     case 'size-unsupported-term':
       return `「${detail}」這類量（地表加速度等）本網站沒有計算，我們只算規模與震度。`;
     case 'repeat-mentioned':
@@ -349,7 +353,7 @@ export const OVERVIEW = {
   upperSub: '「從沒發生過」不代表不可能；這個上限來自固定速率模型（M2）的 95% 區間。',
   spectrumLead: '看你怎麼定義「大」：',
   spectrumSub: '同一句話，「大」可以是有感就算，也可以是非常強的地震。命中率差這麼多，所以先給你整條光譜。',
-  spectrumInvite: '點一種解讀就能看到完整分析；也可以在上面的確認卡直接選規模或震度。',
+  spectrumInvite: '點一種解讀就能看到完整分析；也可以在確認卡直接選規模或震度。',
   analogy: (text: string, num: string, den: string) => `≈ ${text}（${num}/${den}）`,
   analogyLabel: '生活換算',
   levelLabel: '算命師等級',
@@ -503,9 +507,10 @@ export const M4 = {
   spectrumHelp: '點一列，就改用那種解讀重算。',
   spectrumAria: (count: string, low: string, high: string) =>
     `解讀光譜：${count} 種解讀的命中率，從 ${low} 到 ${high}。每一列都是按鈕，可以改用那種解讀。`,
-  spectrumRowAria: (label: string, p: string, current: boolean) =>
-    `${label}：${p}${current ? '（目前的解讀）' : '。點一下改用這個解讀'}`,
+  spectrumRowAria: (label: string, p: string, current: boolean, official: boolean) =>
+    `${label}${official ? '（中央氣象署的定義）' : ''}：${p}${current ? '（目前的解讀）' : '。點一下改用這個解讀'}`,
   spectrumCurrent: '目前',
+  spectrumOfficial: '官方定義',
   legendMagnitude: '規模（套用預言的地區）',
   legendIntensity: '震度（全台任一地點最大震度）',
   matrixTitle: '敏感度矩陣：規模門檻 × 天數',
@@ -816,20 +821,24 @@ export const GATE = {
   foreignContinue: '改用台灣及近海試算',
   notQuakeTitle: '這看起來不像一則地震預言',
   notQuakeText: '原文裡找不到和地震有關的字（例如地震、震度、規模、有感），可能是貼錯內容，或只是在測試。',
-  notQuakeHint: '如果真的是一則地震預言，可以先在上面的確認卡選好時間、地點和大小，再按下面的按鈕。',
+  notQuakeHint: '如果真的是一則地震預言：在確認卡改任何一項（時間、地點或大小），就會直接算出結果；或按下面的按鈕，照目前的設定計算。',
   notProphecyTitle: '這看起來不是一則預言',
   notProphecyText: '原文像是在講地震演練、保險或防災準備，沒有預言會發生多大的地震。',
-  notProphecyHint: '如果真的是一則預言，可以先在上面的確認卡選好時間、地點和大小，再按下面的按鈕。',
+  notProphecyHint: '如果真的是一則預言：在確認卡改任何一項，就會直接算出結果；或按下面的按鈕，照目前的設定計算。',
   emptyTitle: '這句話沒有說什麼時候、在哪裡、多大',
   emptyText: '一則預言至少要說出時間、地點或大小其中一項，才能判斷「中」或「不中」。',
-  emptyHint: '可以在上面的確認卡補上，或換一句完整的預言，例如「下週花蓮會有規模 6 以上的地震」。',
+  emptyHint: '可以在確認卡補上任何一項（會直接算出結果），或換一句完整的預言，例如「下週花蓮會有規模 6 以上的地震」。',
   pastTitle: '這句話說的好像是已經發生的地震',
-  pastText: '原文提到過去的時間（例如去年、昨天、某個已經過去的年份），卻沒有說未來什麼時候。已經發生的地震不需要猜，所以沒有「猜中」的問題。',
-  pastHint: '如果這是一則預言，請在上面的確認卡選好時間；或按下面的按鈕，照目前的設定（未來 30 天）計算。',
+  pastText: '原文的時間已經過去了（例如去年 11 月、昨天、2024 年 4 月 3 日），也沒有說未來什麼時候。已經發生的地震不需要猜，所以沒有「猜中」的問題。',
+  pastHint: '如果這是一則預言：在確認卡改「時間」，就會直接算出結果；或按下面的按鈕，照目前的設定計算。',
   conflictTitle: '這則預言的說法互相矛盾',
   conflictText: (list: string) =>
     `原文同時提到好幾種說法（${list}）。什麼都說的預言，等於什麼都沒說：不管發生什麼，都能找到一種說法算「中」。`,
-  conflictHint: '請在上面的確認卡選定一種；或照確認卡上目前的解讀計算。',
+  conflictHint: '在確認卡選定一種（改任何一項就會直接算出結果）；或按下面的按鈕，照確認卡上目前的解讀計算。',
+  negatedTitle: '這則預言說的是「不會發生」或「最多多大」',
+  negatedText: (word: string) =>
+    `原文有「${word}」。本網站算的是「會發生、而且至少多大」的預言有多容易猜中；說「不會發生」的預言，猜中的機會正好是 1 減去那個數字。`,
+  negatedHint: '按下面的按鈕，看看「會發生」的版本有多容易中（再用 1 減去它）；或在確認卡改成你想算的說法。',
   continue: '照目前的設定算算看',
   clear: '清空，重新輸入',
 } as const;

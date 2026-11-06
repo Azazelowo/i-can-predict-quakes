@@ -128,7 +128,8 @@ export type FlagCode =
   | 'time-vague' // 「近期」等，暫用 30 天
   | 'time-past' // 指定的日期已經過了（相對於發布日）
   | 'time-clamped' // 天數超過上限，已截斷
-  | 'time-multiple' // 提到多個不同的時間（detail = 原文說法，以「、」連接），取最先出現的
+  | 'time-multiple' // 提到多個不同的時間（detail = 原文說法，以「、」連接），取地震說法前面最近的那一個
+  | 'time-unrecognized' // 有看得出是時間、但還不會換算的說法（節日、連假、農曆；detail = 原文用詞），暫用 30 天
   // 地點
   | 'region-unspecified' // 沒說地點，預設台灣及近海
   | 'region-out-of-scope' // 提到國外（detail = 地名）；目前只算台灣
@@ -146,6 +147,7 @@ export type FlagCode =
   | 'size-magnitude-type' // 規模種類不是 ML（detail = Mw、Ms、Mj、mb…），數值直接當 ML 門檻
   | 'size-official-term' // 用了中央氣象署的分級名稱（detail = 原文用詞，例如「中地震」「弱震」）
   | 'size-unsupported-term' // 提到本網站不計算的量（detail = PGA、PGV、加速度…）
+  | 'size-negated' // 說的是「不會發生」或「最多多大」（detail = 原文用詞）：網頁會先請使用者確認
   // 其他
   | 'repeat-mentioned'; // 原文提到重複預言（「又說」「每週都說」），請看亂槍打鳥模式
 

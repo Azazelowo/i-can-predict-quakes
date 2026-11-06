@@ -113,6 +113,8 @@ class App {
   private resizeTimer = 0;
   /** 使用規範關掉後，焦點回到打開它的按鈕 */
   private termsReturnFocus: HTMLElement | null = null;
+  /** 這次點擊是不是在暗色背景上按下的（在對話框裡選取文字、拖到外面才放開，不算點背景） */
+  private downOnBackdrop = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -230,15 +232,32 @@ class App {
     s.source = null;
     // 連結不含原文；清掉輸入框裡上一則預言的文字，免得和確認卡上的解讀對不起來
     s.text = '';
-    // 分享連結只有已經確認過的解讀，不需要再攔
+    // 網址只會在確認過之後才寫入（submit 把關時不寫），所以連結裡的解讀不需要再攔
     s.gate = null;
+    // 載入中按過「算算看」：已經改看連結了，資料載入後不要再送出輸入框的文字
+    s.pendingSubmit = false;
     s.issuedAt = claim.issuedAt;
     s.notes = notesForRestoredClaim(claim);
     s.edited = new Set();
     s.timeError = null;
     s.inputMessage = null;
     this.recompute();
+    // 輸入框還有焦點時，morph 不會覆寫它的值：明確清掉
+    this.afterRender.push(() => {
+      const box = document.getElementById('claim-text');
+      if (box instanceof HTMLTextAreaElement) box.value = '';
+    });
     return true;
+  }
+
+  /** 拿掉網址的 hash（清空、或這則解讀還沒確認時） */
+  private clearHash(): void {
+    if (!window.location.hash) return;
+    try {
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    } catch {
+      // 某些嵌入環境不允許改網址
+    }
   }
 
   // ============================================================== 送出
@@ -278,19 +297,32 @@ class App {
     s.edited = new Set();
     s.timeError = null;
     s.inputMessage = null;
-    // 只提到國外、看不出是預言、說法互相矛盾：先請使用者確認，不直接給數字
+    // 只提到國外、看不出是預言、說法互相矛盾…：先請使用者確認，不直接給數字
     s.gate = assessParse(text, parse);
     this.recompute();
-    this.syncHash();
+    // 還沒確認的解讀不寫進網址：否則重新整理或分享網址就繞過了把關
+    if (s.gate === null) this.syncHash();
+    else this.clearHash();
     this.invalidate();
     this.afterRender.push(() => {
-      // 兩欄時確認卡和結果並排：捲到整個內容的頂端，不然右欄的主數字會被捲出畫面
-      const target = this.isTwoColumn() ? this.slots.main : document.getElementById('confirm-card');
-      if (target) scrollToElement(target);
+      // 兩欄時確認卡和結果並排：捲到整個內容的頂端，結果欄也回到最上面，不然主數字會被捲出畫面
+      const two = this.isTwoColumn();
+      const card = document.getElementById('confirm-card');
+      if (two) {
+        // 兩欄各自捲動：整頁捲到內容頂端，左欄捲到確認卡，右欄回到主數字
+        scrollToElement(this.slots.main);
+        const side = this.slots.input.closest('.col-side');
+        if (side && card) side.scrollTo({ top: Math.max(0, card.offsetTop - 8) });
+        this.slots.results.closest('.col-main')?.scrollTo({ top: 0 });
+      } else if (card) {
+        scrollToElement(card);
+      }
+      // 把關卡沒有 aria-live：把焦點移過去，螢幕報讀器才會念出來
+      if (s.gate !== null) document.getElementById('gate')?.focus({ preventScroll: true });
     });
   }
 
-  /** 清空：回到剛打開網站的樣子（不動顯示設定） */
+  /** 清空：回到剛打開網站的樣子（不動顯示設定與使用規範） */
   private clear(): void {
     const s = this.state;
     s.text = '';
@@ -306,11 +338,14 @@ class App {
     s.gate = null;
     s.open = new Set();
     s.copyStatus = 'idle';
-    try {
-      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-    } catch {
-      // 某些嵌入環境不允許改網址
-    }
+    // 載入中按過「算算看」：清空之後不要在資料載入時送出空白或打到一半的文字
+    s.pendingSubmit = false;
+    // 確認卡上手動改過的發布日也回到今天
+    s.issuedAt = todayIso();
+    s.issuedAtTouched = false;
+    this.clearHash();
+    // 先拿掉舊的模式卡：render 一開始會依 DOM 同步展開狀態（syncOpenFromDom），留著會把 s.open 還原
+    this.slots.results.replaceChildren();
     this.invalidate();
     this.afterRender.push(() => {
       window.scrollTo({ top: 0 });
@@ -510,8 +545,14 @@ class App {
       const form = e.target;
       if (form instanceof HTMLFormElement && form.dataset['form'] === 'claim') {
         e.preventDefault();
+        // 以畫面上的文字為準（輸入框有焦點時，從連結還原的清空不會套用到它）
+        const box = form.querySelector('textarea');
+        if (box !== null) this.state.text = box.value;
         this.submit();
       }
+    });
+    root.addEventListener('pointerdown', (e) => {
+      this.downOnBackdrop = e.target instanceof HTMLElement && e.target.classList.contains('modal-backdrop');
     });
     root.addEventListener('input', (e) => this.onInput(e));
     root.addEventListener('change', (e) => this.onChange(e));
@@ -629,9 +670,11 @@ class App {
   }
 
   private onClick(e: MouseEvent): void {
-    // 點對話框外面的暗色背景：同意過的人可以這樣關掉
+    // 點對話框外面的暗色背景：同意過的人可以這樣關掉。按下和放開都要在背景上：
+    // 在條文上拖曳選取、拖到外面才放開時，Chromium 會把 click 派給共同的祖先（背景），不能因此關掉
     if (e.target instanceof HTMLElement && e.target.classList.contains('modal-backdrop')) {
-      this.closeTerms(false);
+      if (this.downOnBackdrop) this.closeTerms(false);
+      this.downOnBackdrop = false;
       return;
     }
     const target = e.target instanceof Element ? e.target.closest<HTMLElement | SVGElement>('[data-action]') : null;
@@ -643,6 +686,8 @@ class App {
         break;
       case 'gate-continue':
         this.state.gate = null;
+        // 確認過了，現在才寫進網址
+        this.syncHash();
         this.invalidate();
         this.afterRender.push(() => {
           const overview = document.getElementById('overview');

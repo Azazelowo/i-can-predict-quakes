@@ -28,6 +28,7 @@ import {
   periodLabels,
 } from './format';
 import { html, type SafeHtml } from './html';
+import { officialSpectrumId } from './official';
 
 /** 總覽最多列出幾項灌水成分 */
 const MAX_FACTORS = 4;
@@ -179,9 +180,9 @@ function analogyAndLevel(results: Results): SafeHtml {
   </div>`;
 }
 
-function spectrumSection(results: Results, width: number): SafeHtml {
+function spectrumSection(results: Results, width: number, officialId: string | null): SafeHtml {
   return html`<section class="ov-section" aria-label="${OVERVIEW.spectrumLead}">
-    ${spectrumChart(results.spectrum.items, results.claim.size, width)}
+    ${spectrumChart(results.spectrum.items, results.claim.size, width, officialId)}
     ${spectrumLegend()}
     <p class="invite">${OVERVIEW.spectrumInvite}</p>
   </section>`;
@@ -266,7 +267,7 @@ export function overviewHtml(state: AppState, results: Results, width: number): 
       <p class="not-forecast-callout">${OVERVIEW.notForecast}</p>
       ${analogyAndLevel(results)}
     </div>
-    ${unspecified ? spectrumSection(results, width) : ''}
+    ${unspecified ? spectrumSection(results, width, officialSpectrumId(state)) : ''}
     ${compareSection(results, state.data)}
     ${consensusSection(results, width)}
     ${unspecified ? '' : factorsSection(results)}

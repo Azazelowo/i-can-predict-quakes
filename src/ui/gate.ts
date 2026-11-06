@@ -33,6 +33,11 @@ export function gateHtml(kind: GateKind, flags: readonly Flag[]): SafeHtml {
       text = GATE.notProphecyText;
       hint = GATE.notProphecyHint;
       break;
+    case 'negated':
+      title = GATE.negatedTitle;
+      text = GATE.negatedText(detailOf(flags, 'size-negated') || '不會');
+      hint = GATE.negatedHint;
+      break;
     case 'empty':
       title = GATE.emptyTitle;
       text = GATE.emptyText;

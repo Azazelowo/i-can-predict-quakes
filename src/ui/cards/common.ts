@@ -17,6 +17,8 @@ export interface CardContext {
   width: number;
   /** M10 滑桿的目前設定 */
   bayes: BayesParams;
+  /** 光譜上要標「官方定義」的項目（預言用了「大地震」「強震」這類有官方定義的詞時）；沒有時為 null */
+  officialSpectrumId: string | null;
 }
 
 export interface CardSpec {

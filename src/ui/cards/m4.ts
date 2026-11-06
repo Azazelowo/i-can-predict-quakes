@@ -38,7 +38,7 @@ export function m4Card(ctx: CardContext): CardSpec {
     peek: formatPercentRange(low, high),
     body: () => html`
       ${explain(M4.explain(formatInt(items.length)))}
-      ${chartBlock(M4.spectrumTitle, html`${spectrumChart(items, results.claim.size, width)}${spectrumLegend()}`, M4.spectrumHelp)}
+      ${chartBlock(M4.spectrumTitle, html`${spectrumChart(items, results.claim.size, width, ctx.officialSpectrumId)}${spectrumLegend()}`, M4.spectrumHelp)}
       ${chartBlock(M4.matrixTitle, matrixTable(results.matrix), M4.matrixHelp(formatRegion(results.claim.region)))}
       ${chartBlock(
         M4.factorsTitle,
