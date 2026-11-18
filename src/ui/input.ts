@@ -38,6 +38,7 @@ export function inputCardHtml(state: AppState): SafeHtml {
         <span class="kbd-hint">${INPUT.shortcut}</span>
       </div>
       <p class="input-message${message ? ` is-${message.kind}` : ''}" role="status">${message?.text ?? ''}</p>
+      ${state.prefilled ? html`<p class="input-message is-info prefill-note">${INPUT.prefilled}</p>` : html``}
     </form>
     ${loadStatus(state)}
     <div class="examples">

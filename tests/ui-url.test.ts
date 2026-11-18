@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeClaim, encodeClaim } from '../src/app/url';
+import { decodeClaim, encodeClaim, readPrefill, withoutPrefill } from '../src/app/url';
 import type { Claim } from '../src/core/types';
 
 const nextWeek = { kind: 'nextWeek' as const, start: '2026-11-09', end: '2026-11-15', days: 7 };
@@ -67,5 +67,24 @@ describe('網址 hash', () => {
     ['太長', `${valid}&x=${'a'.repeat(600)}`],
   ])('不合法的 hash 一律忽略：%s', (_name, hash) => {
     expect(decodeClaim(hash)).toBeNull();
+  });
+});
+
+describe('?q= 預填（readPrefill、withoutPrefill）', () => {
+  it('讀出句子：換行變空白、去掉控制字元、限制長度', () => {
+    expect(readPrefill('?q=%E9%AB%98%E9%9B%84%E5%B8%82%E9%99%84%E8%BF%91+3+%E5%A4%A9', 1000)).toBe('高雄市附近 3 天');
+    expect(readPrefill(`?q=${encodeURIComponent(' 三天內\n台灣\u0001會有 M7 地震 ')}`, 1000)).toBe('三天內 台灣會有 M7 地震');
+    expect(readPrefill(`?q=${'一'.repeat(50)}`, 10)).toHaveLength(10);
+  });
+
+  it('沒有 q、或 q 是空的：不預填', () => {
+    expect(readPrefill('', 1000)).toBeNull();
+    expect(readPrefill('?x=1', 1000)).toBeNull();
+    expect(readPrefill('?q=%20%20', 1000)).toBeNull();
+  });
+
+  it('拿掉 q 之後，其他參數與 hash 都保留（原文不留在網址裡）', () => {
+    expect(withoutPrefill('/i-can-predict-quakes/', '?q=abc', '')).toBe('/i-can-predict-quakes/');
+    expect(withoutPrefill('/p/', '?a=1&q=%E5%9C%B0%E9%9C%87&b=2', '#v=1')).toBe('/p/?a=1&b=2#v=1');
   });
 });
