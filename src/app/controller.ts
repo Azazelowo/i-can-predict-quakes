@@ -19,7 +19,7 @@ import { morphChildren, morphElement, scrollToElement } from '../ui/dom';
 import { footerHtml } from '../ui/footer';
 import { explainerHtml, headerHtml } from '../ui/header';
 import { html, type SafeHtml } from '../ui/html';
-import { inputCardHtml } from '../ui/input';
+import { inputCardHtml, MAX_INPUT_LENGTH } from '../ui/input';
 import { miniMapHtml } from '../ui/map';
 import { resultsHtml, singleCardHtml } from '../ui/results';
 import {
@@ -50,7 +50,7 @@ import {
 import { assessParse } from './quality';
 import { shareText, shareUrl } from './share';
 import { initialState, isCardId, type AppState, type CardId, type SpanSlot } from './state';
-import { decodeClaim, encodeClaim } from './url';
+import { decodeClaim, encodeClaim, readPrefill, withoutPrefill } from './url';
 import { sliderValue, type BayesParam } from '../ui/sliders';
 import { gateHtml } from '../ui/gate';
 import { termsHtml } from '../ui/terms';
@@ -155,6 +155,7 @@ class App {
       terms: must(this.root, '#terms-slot'),
     };
     this.bind();
+    this.applyPrefill();
     this.restoreFromHash(window.location.hash);
     this.measure();
     this.render();
@@ -221,6 +222,24 @@ class App {
     }
   }
 
+  /**
+   * `?q=` 帶入的預言：只填進輸入框、不送出（仍要按「算算看」、經過把關與確認卡）。
+   * 讀完立刻把 q 從網址拿掉：原文不留在網址列與瀏覽紀錄裡（規則 3）。同時有合法的 hash 時，hash 的解讀優先。
+   */
+  private applyPrefill(): void {
+    const { pathname, search, hash } = window.location;
+    if (!new URLSearchParams(search).has('q')) return;
+    try {
+      window.history.replaceState(window.history.state, '', withoutPrefill(pathname, search, hash));
+    } catch {
+      // 某些嵌入環境不允許改網址；不影響預填
+    }
+    const text = readPrefill(search, MAX_INPUT_LENGTH);
+    if (!text) return;
+    this.state.text = text;
+    this.state.prefilled = true;
+  }
+
   /** 從 hash 還原 Claim；hash 不合法時什麼都不做（回傳 false）。 */
   private restoreFromHash(hash: string): boolean {
     const claim = decodeClaim(hash);
@@ -229,6 +248,7 @@ class App {
     if (s.claim && encodeClaim(s.claim) === encodeClaim(claim)) return true;
     s.claim = claim;
     s.fromLink = true;
+    s.prefilled = false;
     s.source = null;
     // 連結不含原文；清掉輸入框裡上一則預言的文字，免得和確認卡上的解讀對不起來
     s.text = '';
@@ -264,6 +284,7 @@ class App {
 
   private submit(): void {
     const s = this.state;
+    s.prefilled = false;
     const text = s.text;
     if (!text.trim()) {
       s.inputMessage = { kind: 'error', text: INPUT.empty };
@@ -326,6 +347,7 @@ class App {
   private clear(): void {
     const s = this.state;
     s.text = '';
+    s.prefilled = false;
     s.source = null;
     s.fromLink = false;
     s.claim = null;
@@ -576,6 +598,11 @@ class App {
     const s = this.state;
     if (t instanceof HTMLTextAreaElement && t.dataset['action'] === 'text') {
       s.text = t.value;
+      // 開始改字就不再是「連結帶進來的原句」，提醒拿掉（只重畫這一次）
+      if (s.prefilled) {
+        s.prefilled = false;
+        this.invalidate();
+      }
       if (s.inputMessage?.kind === 'error') {
         s.inputMessage = null;
         this.invalidate();

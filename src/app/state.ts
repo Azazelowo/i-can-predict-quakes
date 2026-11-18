@@ -46,6 +46,8 @@ export interface AppState {
   /** 最近一次解析的原文與結果（從分享連結還原時為 null，畫面改顯示由 claim 產生的描述） */
   source: { text: string; parse: ParseResult } | null;
   fromLink: boolean;
+  /** 輸入框的文字是從 `?q=` 連結帶進來的、還沒送出（輸入卡上提醒一句） */
+  prefilled: boolean;
 
   claim: Claim | null;
   /** 確認卡下方的小提醒（依欄位分組，改哪一項就換掉哪一組） */
@@ -95,6 +97,7 @@ export function initialState(issuedAt: string, prefs: Prefs, termsOpen: boolean)
     issuedAtTouched: false,
     source: null,
     fromLink: false,
+    prefilled: false,
     claim: null,
     notes: emptyNotes(),
     edited: new Set(),

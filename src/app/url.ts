@@ -169,3 +169,29 @@ export function decodeClaim(hash: string): Claim | null {
     size,
   };
 }
+
+/**
+ * 外部連結帶入的預言（`?q=…`，例如「臺灣地震風險評估」APP 的「拿去算算看」）。
+ * 只用來預填輸入框：不自動送出，仍要經過輸入把關與確認卡。controller 讀完就把 q 從網址拿掉，
+ * 原文不留在網址列、瀏覽紀錄與之後的分享連結裡（AGENTS.md 規則 3）。
+ */
+export function readPrefill(search: string, maxLength: number): string | null {
+  let q: string | null;
+  try {
+    q = new URLSearchParams(search).get('q');
+  } catch {
+    return null;
+  }
+  if (q === null) return null;
+  // 換行、Tab 變成空白；其他控制字元拿掉
+  const text = q.replace(/\s+/g, ' ').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, maxLength);
+  return text || null;
+}
+
+/** 拿掉 `q` 之後的網址（其他參數與 hash 保留） */
+export function withoutPrefill(pathname: string, search: string, hash: string): string {
+  const params = new URLSearchParams(search);
+  params.delete('q');
+  const rest = params.toString();
+  return `${pathname}${rest ? `?${rest}` : ''}${hash}`;
+}
